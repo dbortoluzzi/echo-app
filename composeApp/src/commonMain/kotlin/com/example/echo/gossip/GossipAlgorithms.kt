@@ -17,7 +17,7 @@ import kotlin.uuid.Uuid
  * for the defined [lifeTime].
  */
 @OptIn(ExperimentalUuidApi::class)
-fun Aggregate<Uuid>.gossipGradient(
+internal fun Aggregate<Uuid>.gossipGradient(
     distances: Field<Uuid, Double>,
     target: Uuid,
     isSource: Boolean,
@@ -87,7 +87,7 @@ fun Aggregate<Uuid>.gossipGradient(
  * Returns a map from source name to the received [Message] with content and distance.
  */
 @OptIn(ExperimentalUuidApi::class)
-fun Aggregate<Uuid>.chatMultipleSources(
+internal fun Aggregate<Uuid>.chatMultipleSources(
     distances: Field<Uuid, Double>,
     isSource: Boolean,
     currentTime: Double,

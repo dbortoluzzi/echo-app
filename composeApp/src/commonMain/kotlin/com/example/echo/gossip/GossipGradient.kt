@@ -8,7 +8,7 @@ package com.example.echo.gossip
  * [localDistance] is the initial local distance of the nodes, and [distance]
  * represents the current estimated distance for the [path].
  */
-data class GossipGradient<ID : Comparable<ID>>(
+internal data class GossipGradient<ID : Comparable<ID>>(
     val distance: Double,
     val localDistance: Double,
     val content: String,
@@ -35,4 +35,4 @@ data class GossipGradient<ID : Comparable<ID>>(
  * Represents a message with [content] propagating in space,
  * along with its [distanceFromSource].
  */
-data class Message(val content: String, val distanceFromSource: Double)
+internal data class Message(val content: String, val distanceFromSource: Double)
