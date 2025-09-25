@@ -3,6 +3,7 @@ package com.example.echo.gossip
 import it.unibo.collektive.aggregate.Field
 import it.unibo.collektive.aggregate.api.Aggregate
 import it.unibo.collektive.aggregate.api.share
+import kotlin.collections.iterator
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -38,7 +39,7 @@ internal fun Aggregate<Uuid>.gossipGradient(
     /*
     If the node is the target of the gradient calculation initialize its distance as 0.0 (from itself).
      */
-    val localDistance = if (isTargetNode) 0.0 else Double.POSITIVE_INFINITY
+    val localDistance = if (isTargetNode) 0.0 else Double.MAX_VALUE
     val localGossip = GossipGradient(
         distance = localDistance,
         localDistance = localDistance,
@@ -46,8 +47,8 @@ internal fun Aggregate<Uuid>.gossipGradient(
         path = listOf(localId),
     )
 
-    val distanceMap: Map<Uuid, Double> = distances.toMap()
-    val result = share(localGossip) { neighborsGossip: Field<Uuid, GossipGradient<Uuid>> ->
+    val distanceMap = distances.toMap()
+    val result = share(localGossip) { neighborsGossip: Field<Uuid, GossipGradient> ->
         var bestGossip = localGossip
         val neighbors = neighborsGossip.toMap().keys
 
@@ -56,6 +57,8 @@ internal fun Aggregate<Uuid>.gossipGradient(
             val pathIsValid = recentPath.none { it == localId || it in neighbors }
             val nextGossip = if (pathIsValid) neighborGossip else neighborGossip.base(neighborId)
             val totalDistance: Double = nextGossip.distance + distanceMap.getOrElse(neighborId) { nextGossip.distance }
+
+            // Accept gossip if it has better distance AND has content
             if (totalDistance < bestGossip.distance && neighborGossip.content.isNotEmpty()) {
                 bestGossip = nextGossip.addHop(totalDistance, localGossip.localDistance, localId)
             }
@@ -65,6 +68,8 @@ internal fun Aggregate<Uuid>.gossipGradient(
 
     /*
     Filter the message before sharing it.
+    Note: We don't filter out messages from the target node itself, as sources should
+    be able to see their own messages for debugging/confirmation purposes.
      */
     val message = Message(result.content, result.distance)
 
@@ -72,18 +77,15 @@ internal fun Aggregate<Uuid>.gossipGradient(
         currentTime <= lifeTime &&
             result.distance < maxDistance &&
             result.distance.isFinite() &&
-            result.content.isNotEmpty() &&
-            localId != target
+            result.content.isNotEmpty()
     }
 }
 
 /**
- * Runs a multi-source proximity chat using [gossipGradient].
+ * Runs a multi-source proximity chat using simple gossip sharing.
  *
- * Each node computes its distance to all sources, identified with [isSource].
- * Nodes within [maxDistance] hear the [content],
- * and nodes beyond [maxDistance] are excluded.
- * The messages have a lifetime equal to [lifeTime].
+ * Each node shares its message if it's a source, and receives messages from other sources.
+ * Messages have a lifetime equal to [lifeTime] and are shared within [maxDistance].
  * Returns a map from source name to the received [Message] with content and distance.
  */
 @OptIn(ExperimentalUuidApi::class)
@@ -95,34 +97,52 @@ internal fun Aggregate<Uuid>.chatMultipleSources(
     lifeTime: Double = 100.0,
     maxDistance: Double = 3000.0,
 ): Map<Uuid, Message> {
-    /*
-    Gossip‐share self‐stabilizing of the sources.
-     */
-    val localSources: Set<Uuid> = if (isSource) setOf(localId) else emptySet()
-    val sources: Set<Uuid> = share(localSources) { neighborSets: Field<Uuid, Set<Uuid>> ->
-        neighborSets.neighborsValues.fold(localSources) { accumulator, neighborSet ->
-            accumulator + neighborSet
-        }
-    }
-    /*
-    Compute [gossipGradient] for each source.
-     */
-    val messages = mutableMapOf<Uuid, Message>()
-    for (sourceId in sources) {
-        alignedOn(sourceId) {
-            val result = gossipGradient(
-                distances = distances,
-                target = sourceId,
-                isSource = localId == sourceId && isSource,
-                currentTime = currentTime,
-                content = content,
-                lifeTime = lifeTime,
-                maxDistance = maxDistance,
-            )
-
-            result?.let { messages[sourceId] = result }
-        }
+    // Create local message if this node is a source and within time limits
+    val localMessage = if (isSource && currentTime <= lifeTime) {
+        Message(content, 0.0)
+    } else {
+        null
     }
 
-    return messages
+    // Share messages using simple gossip protocol with actual distances
+    val distanceMap = distances.toMap()
+    val allMessages: Map<Uuid, Message> = share(
+        if (localMessage != null) mapOf(localId to localMessage) else emptyMap(),
+    ) { neighborMessages: Field<Uuid, Map<Uuid, Message>> ->
+        val result = mutableMapOf<Uuid, Message>()
+
+        // Add our own message if we have one
+        localMessage?.let { result[localId] = it }
+
+        // Collect messages from all neighbors
+        for ((neighborId, neighborMsgs) in neighborMessages.toMap()) {
+            val distanceToNeighbor = distanceMap.getOrElse(neighborId) { Double.MAX_VALUE }
+
+            for ((sourceId, message) in neighborMsgs) {
+                // Skip our own messages and check distance constraints
+                if (sourceId != localId) {
+                    // Calculate total distance: distance from source to neighbor + distance from neighbor to us
+                    val totalDistance = message.distanceFromSource + distanceToNeighbor
+
+                    // Only accept messages that are within the maximum distance
+                    if (totalDistance < maxDistance) {
+                        val updatedMessage = message.copy(
+                            distanceFromSource = totalDistance,
+                        )
+
+                        // Keep the message with the shortest distance from each source
+                        val existing = result[sourceId]
+                        if (existing == null || updatedMessage.distanceFromSource < existing.distanceFromSource) {
+                            result[sourceId] = updatedMessage
+                        }
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
+    // Return all messages except our own (for consistency with original filtering)
+    return allMessages.filterKeys { it != localId }
 }

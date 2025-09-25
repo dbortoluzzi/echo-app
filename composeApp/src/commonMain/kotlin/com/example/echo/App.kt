@@ -43,5 +43,6 @@ fun CollektiveNearbyDevices(modifier: Modifier) {
         devices,
         connection,
         uuid,
+        viewModel,
     )
 }

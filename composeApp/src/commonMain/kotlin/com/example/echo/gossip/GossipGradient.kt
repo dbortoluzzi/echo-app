@@ -1,5 +1,10 @@
 package com.example.echo.gossip
 
+import com.example.echo.serialization.UuidSerializer
+import kotlinx.serialization.Serializable
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
 /**
  * Data structure representing a state in a gossip-based gradient algorithm.
  *
@@ -8,22 +13,27 @@ package com.example.echo.gossip
  * [localDistance] is the initial local distance of the nodes, and [distance]
  * represents the current estimated distance for the [path].
  */
-internal data class GossipGradient<ID : Comparable<ID>>(
+@Serializable
+@OptIn(ExperimentalUuidApi::class)
+internal data class GossipGradient(
     val distance: Double,
     val localDistance: Double,
     val content: String,
-    val path: List<ID> = emptyList(),
+    val path: List<
+        @Serializable(with = UuidSerializer::class)
+        Uuid,
+        > = emptyList(),
 ) {
     /**
      * Reset gossip to start from the local value of the specified node [id].
      */
-    fun base(id: ID) = GossipGradient(localDistance, localDistance, content, listOf(id))
+    fun base(id: Uuid) = GossipGradient(localDistance, localDistance, content, listOf(id))
 
     /**
      * Add a new hop [id] to the path, update the distance with [newBest] and the
      * localDistance with [localDistance].
      */
-    fun addHop(newBest: Double, localDistance: Double, id: ID) = GossipGradient(
+    fun addHop(newBest: Double, localDistance: Double, id: Uuid) = GossipGradient(
         distance = newBest,
         localDistance = localDistance,
         content = content,
@@ -35,4 +45,5 @@ internal data class GossipGradient<ID : Comparable<ID>>(
  * Represents a message with [content] propagating in space,
  * along with its [distanceFromSource].
  */
-internal data class Message(val content: String, val distanceFromSource: Double)
+@Serializable
+data class Message(val content: String, val distanceFromSource: Double)

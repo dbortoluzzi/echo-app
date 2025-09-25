@@ -1,6 +1,7 @@
 package com.example.echo.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -24,8 +26,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,61 +38,82 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.echo.models.ChatMessage
 import com.example.echo.viewmodels.NearbyDevicesViewModel
-import kotlinx.coroutines.launch
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-data class Message
-@OptIn(ExperimentalTime::class, ExperimentalUuidApi::class)
-constructor(
-    val text: String,
-    val sender: Uuid,
-    val timestamp: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()),
-)
-
-@OptIn(ExperimentalUuidApi::class, ExperimentalTime::class)
+@OptIn(ExperimentalUuidApi::class)
 @Composable
-fun Screen(modifier: Modifier, devices: Set<Uuid>, connection: NearbyDevicesViewModel.ConnectionState, uuid: Uuid) {
-    var metersValue by remember { mutableStateOf(0f) }
-    var secondsValue by remember { mutableStateOf(0f) }
-    var messages by remember { mutableStateOf(listOf<Message>()) }
+fun Screen(
+    modifier: Modifier,
+    devices: Set<Uuid>,
+    connection: NearbyDevicesViewModel.ConnectionState,
+    uuid: Uuid,
+    viewModel: NearbyDevicesViewModel,
+) {
+    var metersValue by remember { mutableStateOf(1000f) }
+    var secondsValue by remember { mutableStateOf(60f) }
     var messageText by remember { mutableStateOf("") }
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+
+    // Collect messages and sending state from ViewModel
+    val messages by viewModel.messagesFlow.collectAsState()
+    val isSending by viewModel.isSendingFlow.collectAsState()
+    val sendingCounter by viewModel.sendingCounterFlow.collectAsState()
+    val discoveredDevices by viewModel.dataFlow.collectAsState()
+
+    // Auto-scroll when new messages arrive
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(maxOf(0, messages.size - 1))
+        }
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
     ) {
+        // Connection Status Indicator
+        ConnectionStatusCard(
+            connection = connection,
+            isSending = isSending,
+            sendingCounter = sendingCounter,
+            discoveredDevicesCount = discoveredDevices.size,
+        )
+
+        Spacer(Modifier.padding(4.dp))
+
         Card(
             modifier = Modifier
                 .fillMaxWidth(),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         ) {
-            Text(
-                text = "Meters: ${metersValue.toInt()}m",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-            )
-            Slider(
-                value = metersValue,
-                onValueChange = { metersValue = it },
-                valueRange = 0f..1000f,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "Max Distance: ${metersValue.toInt()}m",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Slider(
+                    value = metersValue,
+                    onValueChange = {
+                        metersValue = it
+                        viewModel.updateMessageParameters(secondsValue.toDouble(), metersValue.toDouble())
+                    },
+                    valueRange = 100f..2000f,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
-        Spacer(Modifier.padding(8.dp))
+        Spacer(Modifier.padding(4.dp))
 
         Card(
             modifier = Modifier
@@ -95,17 +121,22 @@ fun Screen(modifier: Modifier, devices: Set<Uuid>, connection: NearbyDevicesView
                 .padding(bottom = 16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         ) {
-            Text(
-                text = "Time: ${secondsValue.toInt()}s",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-            )
-            Slider(
-                value = secondsValue,
-                onValueChange = { secondsValue = it },
-                valueRange = 0f..60f,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "Message Lifetime: ${secondsValue.toInt()}s",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Slider(
+                    value = secondsValue,
+                    onValueChange = {
+                        secondsValue = it
+                        viewModel.updateMessageParameters(secondsValue.toDouble(), metersValue.toDouble())
+                    },
+                    valueRange = 10f..120f,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         // Messages
@@ -123,7 +154,7 @@ fun Screen(modifier: Modifier, devices: Set<Uuid>, connection: NearbyDevicesView
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(messages) { message ->
-                    MessageItem(message = message, uuid)
+                    MessageItem(message = message, uuid = uuid)
                 }
             }
         }
@@ -140,40 +171,124 @@ fun Screen(modifier: Modifier, devices: Set<Uuid>, connection: NearbyDevicesView
                 placeholder = { Text("Write a message...") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(24.dp),
+                enabled = !isSending,
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            FloatingActionButton(
-                onClick = {
-                    if (messageText.isNotBlank()) {
-                        val newMessage = Message(
-                            text = messageText,
-                            sender = uuid,
-                        )
-                        messages = messages + newMessage
-                        messageText = ""
-
-                        scope.launch {
-                            listState.animateScrollToItem(messages.size - 1)
+            Box {
+                FloatingActionButton(
+                    onClick = {
+                        if (messageText.isNotBlank() && !isSending) {
+                            viewModel.sendMessage(
+                                message = messageText,
+                                lifeTime = secondsValue.toDouble(),
+                                maxDistanceMeters = metersValue.toDouble(),
+                            )
+                            messageText = ""
                         }
+                    },
+                    modifier = Modifier.size(56.dp),
+                    containerColor = if (isSending) {
+                        MaterialTheme.colorScheme.secondary
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                ) {
+                    if (isSending) {
+                        Text(
+                            text = "$sendingCounter",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondary,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send Message",
+                        )
                     }
-                    // TODO: send messages to other devices
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ConnectionStatusCard(
+    connection: NearbyDevicesViewModel.ConnectionState,
+    isSending: Boolean,
+    sendingCounter: Int = 0,
+    discoveredDevicesCount: Int = 0,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when (connection) {
+                NearbyDevicesViewModel.ConnectionState.CONNECTED -> Color(0xFF4CAF50).copy(alpha = 0.1f)
+                NearbyDevicesViewModel.ConnectionState.SENDING -> Color(0xFFFF9800).copy(alpha = 0.1f)
+                NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color(0xFFF44336).copy(alpha = 0.1f)
+            },
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(12.dp),
+                shape = CircleShape,
+                color = when (connection) {
+                    NearbyDevicesViewModel.ConnectionState.CONNECTED -> Color(0xFF4CAF50)
+                    NearbyDevicesViewModel.ConnectionState.SENDING -> Color(0xFFFF9800)
+                    NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color(0xFFF44336)
                 },
-                modifier = Modifier.size(56.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send Message",
+            ) {}
+
+            Column {
+                Text(
+                    text = when (connection) {
+                        NearbyDevicesViewModel.ConnectionState.CONNECTED -> "Connected"
+                        NearbyDevicesViewModel.ConnectionState.SENDING -> "Sending Message..."
+                        NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> "Disconnected"
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = when (connection) {
+                        NearbyDevicesViewModel.ConnectionState.CONNECTED -> Color(0xFF4CAF50)
+                        NearbyDevicesViewModel.ConnectionState.SENDING -> Color(0xFFFF9800)
+                        NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color(0xFFF44336)
+                    },
+                )
+
+                Text(
+                    text = "Discovered devices: $discoveredDevicesCount",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            if (isSending) {
+                Text(
+                    text = "${sendingCounter}s",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFFF9800),
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalUuidApi::class, ExperimentalTime::class)
+@OptIn(ExperimentalUuidApi::class)
 @Composable
-fun MessageItem(message: Message, uuid: Uuid) {
+fun MessageItem(message: ChatMessage, uuid: Uuid) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (message.sender == uuid) Arrangement.End else Arrangement.Start,
@@ -198,13 +313,13 @@ fun MessageItem(message: Message, uuid: Uuid) {
                 modifier = Modifier.padding(12.dp),
             ) {
                 Text(
-                    text = uuid.toString(),
+                    text = "Device: ${message.sender.toString().take(8)}...",
                     color = if (message.sender == uuid) {
                         MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
                     } else {
-                        MaterialTheme.colorScheme.onSurface
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     },
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -220,15 +335,32 @@ fun MessageItem(message: Message, uuid: Uuid) {
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Text(
-                    text = message.timestamp.toString(),
-                    color = if (message.sender == uuid) {
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    },
-                    fontSize = 11.sp,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = message.timestamp.toString().take(16), // Show only date and time
+                        color = if (message.sender == uuid) {
+                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        },
+                        fontSize = 10.sp,
+                    )
+
+                    if (message.distanceFromSource > 0) {
+                        Text(
+                            text = "${message.distanceFromSource.toInt()}m",
+                            color = if (message.sender == uuid) {
+                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            },
+                            fontSize = 10.sp,
+                        )
+                    }
+                }
             }
         }
     }
