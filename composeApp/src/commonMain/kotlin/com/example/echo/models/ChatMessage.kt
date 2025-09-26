@@ -21,6 +21,8 @@ constructor(
     val text: String,
     @Serializable(with = UuidSerializer::class)
     val sender: Uuid,
+    @Serializable(with = UuidSerializer::class)
+    val messageId: Uuid = Uuid.random(), // Unique ID for each message instance
     val timestamp: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()),
     val distanceFromSource: Double = 0.0,
 )

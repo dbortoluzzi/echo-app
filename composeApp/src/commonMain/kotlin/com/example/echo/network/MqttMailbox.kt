@@ -1,6 +1,7 @@
 package com.example.echo.network
 
 import com.diamondedge.logging.logging
+import com.example.echo.PORT_NUMBER_BROKER
 import io.github.davidepianca98.MQTTClient
 import io.github.davidepianca98.mqtt.MQTTVersion
 import io.github.davidepianca98.mqtt.Subscription
@@ -139,7 +140,7 @@ class MqttMailbox private constructor(
         suspend operator fun invoke(
             deviceId: Uuid,
             host: String,
-            port: Int = 1883,
+            port: Int = PORT_NUMBER_BROKER,
             serializer: SerialFormat = Json,
             retentionTime: Duration = 5.seconds,
             dispatcher: CoroutineDispatcher,

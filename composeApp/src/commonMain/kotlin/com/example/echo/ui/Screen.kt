@@ -42,6 +42,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.echo.DEFAULT_MAX_DISTANCE
+import com.example.echo.DEFAULT_MAX_TIME
+import com.example.echo.MAX_DISTANCE
+import com.example.echo.MAX_TIME
+import com.example.echo.MIN_DISTANCE
+import com.example.echo.MIN_TIME
 import com.example.echo.models.ChatMessage
 import com.example.echo.viewmodels.NearbyDevicesViewModel
 import kotlin.uuid.ExperimentalUuidApi
@@ -56,8 +62,8 @@ fun Screen(
     uuid: Uuid,
     viewModel: NearbyDevicesViewModel,
 ) {
-    var metersValue by remember { mutableStateOf(1000f) }
-    var secondsValue by remember { mutableStateOf(60f) }
+    var metersValue by remember { mutableStateOf(DEFAULT_MAX_DISTANCE.toFloat()) }
+    var secondsValue by remember { mutableStateOf(DEFAULT_MAX_TIME.toFloat()) }
     var messageText by remember { mutableStateOf("") }
 
     val listState = rememberLazyListState()
@@ -108,7 +114,7 @@ fun Screen(
                         metersValue = it
                         viewModel.updateMessageParameters(secondsValue.toDouble(), metersValue.toDouble())
                     },
-                    valueRange = 100f..2000f,
+                    valueRange = MIN_DISTANCE.toFloat()..MAX_DISTANCE.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -133,7 +139,7 @@ fun Screen(
                         secondsValue = it
                         viewModel.updateMessageParameters(secondsValue.toDouble(), metersValue.toDouble())
                     },
-                    valueRange = 10f..120f,
+                    valueRange = MIN_TIME.toFloat()..MAX_TIME.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -188,7 +194,7 @@ fun Screen(
                             messageText = ""
                         }
                     },
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(50.dp),
                     containerColor = if (isSending) {
                         MaterialTheme.colorScheme.secondary
                     } else {

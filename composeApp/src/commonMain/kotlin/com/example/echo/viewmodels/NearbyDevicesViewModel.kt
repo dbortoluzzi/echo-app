@@ -1,6 +1,8 @@
 package com.example.echo.viewmodels
 
 import com.diamondedge.logging.logging
+import com.example.echo.DEFAULT_MAX_DISTANCE
+import com.example.echo.DEFAULT_MAX_TIME
 import com.example.echo.gossip.chatMultipleSources
 import com.example.echo.models.ChatMessage
 import com.example.echo.network.MqttMailbox
@@ -45,15 +47,14 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
 
     private val _sendingCounterFlow = MutableStateFlow(0)
     val sendingCounterFlow: StateFlow<Int> = _sendingCounterFlow.asStateFlow()
-
     @OptIn(ExperimentalUuidApi::class)
     val deviceId = Uuid.random()
-
-    // Current message being sent
     private var currentMessage: String = ""
+    @OptIn(ExperimentalUuidApi::class)
+    private var currentMessageId: Uuid = Uuid.random()
     private var messageStartTime: Long = 0L
-    private var messageLifeTime: Double = 60.0 // Default 60 seconds
-    private var maxDistance: Double = 1000.0 // Default 1000 meters
+    private var messageLifeTime: Double = DEFAULT_MAX_TIME
+    private var maxDistance: Double = DEFAULT_MAX_DISTANCE
 
     enum class ConnectionState {
         CONNECTED,
@@ -93,6 +94,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
             isSource = isSource,
             currentTime = currentTime - messageStartTime,
             content = currentMessage,
+            messageId = currentMessageId,
             lifeTime = messageLifeTime,
             maxDistance = maxDistance,
         )
@@ -108,6 +110,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
                 ChatMessage(
                     text = message.content,
                     sender = senderId,
+                    messageId = message.messageId,
                     distanceFromSource = message.distanceFromSource,
                 )
             } else {
@@ -131,11 +134,20 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
                 val (newDevices, newMessages) = program.cycle()
                 _dataFlow.value = newDevices
 
-                // Update messages, showing ALL messages for debugging
+                // Update messages, only add new unique messages based on messageId
                 val currentMessages = _messagesFlow.value.toMutableList()
                 newMessages.forEach { newMessage ->
-                    log.i { "Adding message to UI: '${newMessage.text}' from ${newMessage.sender}" }
-                    currentMessages.add(newMessage)
+                    // Check if we already have this message (same messageId)
+                    val isDuplicate = currentMessages.any { existing ->
+                        existing.messageId == newMessage.messageId
+                    }
+                    
+                    if (!isDuplicate) {
+                        log.i { "Adding NEW message to UI: '${newMessage.text}' from ${newMessage.sender} (ID: ${newMessage.messageId})" }
+                        currentMessages.add(newMessage)
+                    } else {
+                        log.i { "Skipping duplicate message: '${newMessage.text}' from ${newMessage.sender} (ID: ${newMessage.messageId})" }
+                    }
                 }
                 _messagesFlow.value = currentMessages
 
@@ -151,7 +163,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     }
 
     @OptIn(ExperimentalTime::class, ExperimentalUuidApi::class)
-    fun sendMessage(message: String, lifeTime: Double = 60.0, maxDistanceMeters: Double = 1000.0) {
+    fun sendMessage(message: String, lifeTime: Double = DEFAULT_MAX_TIME, maxDistanceMeters: Double = DEFAULT_MAX_DISTANCE) {
         scope.launch {
             log.i { "Message: '$message'" }
             _isSendingFlow.value = true
@@ -159,6 +171,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
             _sendingCounterFlow.value = 0
 
             currentMessage = message
+            currentMessageId = Uuid.random()
             messageStartTime = Clock.System.now().epochSeconds
             messageLifeTime = lifeTime
             maxDistance = maxDistanceMeters
@@ -167,6 +180,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
             val localMessage = ChatMessage(
                 text = message,
                 sender = deviceId,
+                messageId = currentMessageId,
                 distanceFromSource = 0.0,
             )
             val currentMessages = _messagesFlow.value.toMutableList()
