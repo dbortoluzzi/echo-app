@@ -11,6 +11,7 @@ androidx-lifecycle = "2.9.1"
 androidx-testExt = "1.2.1"
 collektiveStdlib = "26.1.2"
 composeMultiplatform = "1.8.2"
+geoCompose = "0.8.0"
 junit = "4.13.2"
 kmqttCommon = "1.0.0"
 kotlin = "2.2.10"
@@ -18,10 +19,12 @@ kotlinxDatetime = "0.7.1"
 kotlinxSerializationJson = "1.9.0"
 logging = "2.0.3"
 materialIconsExtended = "1.7.3"
+permissionsCompose = "0.20.1"
 
 [libraries]
 collektive-dsl = { module = "it.unibo.collektive:collektive-dsl", version.ref = "collektiveStdlib" }
 collektive-stdlib = { module = "it.unibo.collektive:collektive-stdlib", version.ref = "collektiveStdlib" }
+geo-compose = { module = "dev.icerock.moko:geo-compose", version.ref = "geoCompose" }
 kmqtt-client = { module = "io.github.davidepianca98:kmqtt-client", version.ref = "kmqttCommon" }
 kmqtt-common = { module = "io.github.davidepianca98:kmqtt-common", version.ref = "kmqttCommon" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -38,6 +41,7 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 logging = { module = "com.diamondedge:logging", version.ref = "logging" }
 material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
+permissions-compose = { module = "dev.icerock.moko:permissions-compose", version.ref = "permissionsCompose" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

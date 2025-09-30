@@ -1,3 +1,4 @@
+import org.gradle.kotlin.dsl.invoke
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -52,6 +53,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.material.icons.extended)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.geo.compose)
+            implementation(libs.permissions.compose)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
