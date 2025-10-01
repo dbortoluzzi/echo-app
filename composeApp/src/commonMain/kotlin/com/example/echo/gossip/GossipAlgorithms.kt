@@ -34,11 +34,11 @@ internal fun Aggregate<Uuid>.gossipChat(
     val localNode = localId == sourceId
     // Create initial message state
     val localMessage = if (localNode && isSource && currentTime <= lifeTime) {
-        Message(content, 0.0, messageId)
+        Message(content, 0.0, messageId, maxDistance)
     } else {
         null
     }
-    
+
     // Share messages with neighbors
     val distanceMap = distances.toMap()
     val result = share(localMessage) { neighborMessages: Field<Uuid, Message?> ->
@@ -48,7 +48,8 @@ internal fun Aggregate<Uuid>.gossipChat(
                 val distanceToNeighbor = distanceMap.getOrElse(neighborId) { Double.MAX_VALUE }
                 val totalDistance = neighborMessage.distanceFromSource + distanceToNeighbor
                 // Accept message if we don't have one or if this path is better
-                if (totalDistance < maxDistance) {
+                // Use the sender's maxDistance, not the receiver's
+                if (totalDistance < neighborMessage.maxDistance) {
                     val updatedMessage = neighborMessage.copy(distanceFromSource = totalDistance)
                     if (bestMessage == null || updatedMessage.distanceFromSource < bestMessage.distanceFromSource) {
                         bestMessage = updatedMessage
@@ -58,7 +59,7 @@ internal fun Aggregate<Uuid>.gossipChat(
         }
         bestMessage
     }
-    
+
     // Return message for non-source nodes only
     return if (!localNode && result != null && result.content.isNotEmpty()) {
         result

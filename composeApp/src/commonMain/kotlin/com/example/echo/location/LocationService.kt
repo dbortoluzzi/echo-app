@@ -3,13 +3,22 @@ package com.example.echo.location
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-data class Location @OptIn(ExperimentalTime::class) constructor(
+/**
+ * Location class to store position data.
+ */
+data class Location
+@OptIn(ExperimentalTime::class)
+constructor(
     val latitude: Double,
     val longitude: Double,
     val accuracy: Float? = null,
-    val timestamp: Long = Clock.System.now().epochSeconds
+    val timestamp: Long = Clock.System.now().epochSeconds,
 )
 
+/**
+ * Interface for location.
+ * Used in both iOS and Android.
+ */
 interface LocationService {
     suspend fun getCurrentLocation(): Location?
     suspend fun startLocationUpdates(onLocationUpdate: (Location) -> Unit)

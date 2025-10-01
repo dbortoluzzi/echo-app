@@ -43,13 +43,14 @@ internal data class GossipGradient(
 
 /**
  * Represents a message with [content] propagating in space,
- * along with its [distanceFromSource] and unique [messageId].
+ * along with its [distanceFromSource], unique [messageId], and [maxDistance] set by sender.
  */
 @Serializable
 @OptIn(ExperimentalUuidApi::class)
 data class Message(
-    val content: String, 
+    val content: String,
     val distanceFromSource: Double,
     @Serializable(with = UuidSerializer::class)
-    val messageId: Uuid
+    val messageId: Uuid,
+    val maxDistance: Double, // Maximum distance set by the original sender
 )

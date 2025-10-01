@@ -10,10 +10,7 @@ import dev.icerock.moko.permissions.compose.rememberPermissionsControllerFactory
 import dev.icerock.moko.permissions.location.LOCATION
 
 @Composable
-actual fun LocationPermissionHandler(
-    onPermissionGranted: (LocationService) -> Unit,
-    onPermissionDenied: () -> Unit
-) {
+actual fun LocationPermissionHandler(onPermissionGranted: (LocationService) -> Unit, onPermissionDenied: () -> Unit) {
     val context = LocalContext.current
     val factory: PermissionsControllerFactory = rememberPermissionsControllerFactory()
     val controller = remember(factory) { factory.createPermissionsController() }

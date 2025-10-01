@@ -39,7 +39,6 @@ class LocationExample {
                 service.startLocationUpdates { location ->
                     log.i { "Location update: ${location.latitude}, ${location.longitude} (${location.accuracy}m)" }
                 }
-
             } catch (e: LocationError) {
                 when (e) {
                     is LocationError.PermissionDenied -> log.e { "Location permission denied" }

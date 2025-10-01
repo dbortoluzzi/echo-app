@@ -74,6 +74,7 @@ fun Screen(
     val isSending by viewModel.isSendingFlow.collectAsState()
     val sendingCounter by viewModel.sendingCounterFlow.collectAsState()
     val discoveredDevices by viewModel.dataFlow.collectAsState()
+    val currentLocation by viewModel.currentLocationFlow.collectAsState()
 
     // Auto-scroll when new messages arrive
     LaunchedEffect(messages.size) {
@@ -93,6 +94,7 @@ fun Screen(
             isSending = isSending,
             sendingCounter = sendingCounter,
             discoveredDevicesCount = discoveredDevices.size,
+            currentLocation = currentLocation,
         )
 
         Spacer(Modifier.padding(4.dp))
@@ -226,6 +228,7 @@ fun ConnectionStatusCard(
     isSending: Boolean,
     sendingCounter: Int = 0,
     discoveredDevicesCount: Int = 0,
+    currentLocation: com.example.echo.location.Location? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -276,6 +279,16 @@ fun ConnectionStatusCard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
+
+                // GPS Status indicator
+                currentLocation?.let { location ->
+                    Text(
+                        text = "📍 GPS: ${location.latitude}, ${location.longitude}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF4CAF50),
+                        maxLines = 1,
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))

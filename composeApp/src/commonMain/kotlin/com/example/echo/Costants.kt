@@ -23,7 +23,7 @@ const val MIN_TIME = 10.0
 /**
  * Maximum propagation distance in meters.
  */
-const val MAX_DISTANCE = 2000.0
+const val MAX_DISTANCE = 50000.0
 
 /**
  * Maximum propagation time in seconds.

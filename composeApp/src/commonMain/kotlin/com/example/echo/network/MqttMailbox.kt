@@ -2,6 +2,9 @@ package com.example.echo.network
 
 import com.diamondedge.logging.logging
 import com.example.echo.PORT_NUMBER_BROKER
+import com.example.echo.location.Location
+import com.example.echo.models.DeviceLocation
+import com.example.echo.models.DeviceLocationHeartbeat
 import io.github.davidepianca98.MQTTClient
 import io.github.davidepianca98.mqtt.MQTTVersion
 import io.github.davidepianca98.mqtt.Subscription
@@ -19,8 +22,10 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -35,10 +40,18 @@ class MqttMailbox private constructor(
     private val serializer: SerialFormat,
     private val retentionTime: Duration,
     private val dispatcher: CoroutineDispatcher,
+    initialLocation: Location, // GPS is mandatory - must be provided at creation
 ) : AbstractSerializerMailbox<Uuid>(deviceId, serializer, retentionTime) {
     private val internalScope = CoroutineScope(dispatcher)
     private var mqttClient: MQTTClient? = null
     val log = logging("MQTT-MAILBOX")
+
+    // Store current location and neighbor locations - GPS is mandatory
+    private var currentLocation: Location = initialLocation // GPS location is required and non-null
+    private val neighborLocations = mutableMapOf<Uuid, Location>()
+
+    // Dedicated JSON serializer for location heartbeat messages
+    private val jsonSerializer = Json { ignoreUnknownKeys = true }
 
     @OptIn(ExperimentalUnsignedTypes::class)
     private fun initializeMqttClient() {
@@ -54,9 +67,26 @@ class MqttMailbox private constructor(
 
             when {
                 topic.startsWith(HEARTBEAT_PREFIX) -> {
-                    // Handle heartbeat
+                    // Handle heartbeat with location information
                     val neighborDeviceId = Uuid.parse(topic.split("/").last())
                     addNeighbor(neighborDeviceId)
+
+                    // Try to parse location information from heartbeat payload
+                    if (payload != null && payload.isNotEmpty()) {
+                        try {
+                            val heartbeat = jsonSerializer.decodeFromString<DeviceLocationHeartbeat>(
+                                payload.decodeToString(),
+                            )
+                            // Save the neighbor's location - this was missing!
+                            val neighborLocation = heartbeat.location?.toLocation()!!
+                            neighborLocations[neighborDeviceId] = neighborLocation
+                            log.d {
+                                "Received GPS location from neighbor $neighborDeviceId: ${neighborLocation.latitude}, ${neighborLocation.longitude}"
+                            }
+                        } catch (e: Exception) {
+                            log.w { "Failed to parse location from heartbeat: ${e.message}" }
+                        }
+                    }
                 }
                 topic == deviceTopic(deviceId) -> {
                     // Handle device messages
@@ -90,13 +120,28 @@ class MqttMailbox private constructor(
         internalScope.launch(dispatcher) { mqttClient?.run() }
     }
 
-    @OptIn(ExperimentalUnsignedTypes::class)
+    @OptIn(ExperimentalUnsignedTypes::class, ExperimentalTime::class)
     private suspend fun sendHeartbeatPulse() {
+        // Create heartbeat with location information - GPS is mandatory and always available
+        val heartbeat = DeviceLocationHeartbeat(
+            deviceId = deviceId.toString(),
+            location = DeviceLocation.fromLocation(currentLocation),
+            timestamp = Clock.System.now().epochSeconds,
+        )
+
+        val payload = try {
+            val json = jsonSerializer.encodeToString(heartbeat)
+            json.encodeToByteArray().toUByteArray()
+        } catch (e: Exception) {
+            log.e { "Failed to serialize heartbeat with GPS location: ${e.message}" }
+            throw IllegalStateException("Cannot serialize GPS location data - app cannot function", e)
+        }
+
         mqttClient?.publish(
             retain = false,
             qos = Qos.AT_MOST_ONCE,
             topic = heartbeatTopic(deviceId),
-            payload = byteArrayOf().toUByteArray(),
+            payload = payload,
         )
         delay(1.seconds)
         sendHeartbeatPulse()
@@ -131,21 +176,42 @@ class MqttMailbox private constructor(
     }
 
     /**
+     * Update the current device location for sharing with neighbors
+     * GPS location is mandatory for the app to function
+     */
+    fun updateCurrentLocation(location: Location) {
+        currentLocation = location
+        log.d { "Updated device location: ${location.latitude}, ${location.longitude}" }
+    }
+
+    /**
+     * Get the location of a specific neighbor device
+     */
+    fun getNeighborLocation(neighborId: Uuid): Location? = neighborLocations[neighborId]
+
+    /**
+     * Get all neighbor locations
+     */
+    fun getAllNeighborLocations(): Map<Uuid, Location> = neighborLocations.toMap()
+
+    /**
      * Companion object to create a new instance of [MqttMailbox].
      */
     companion object {
         /**
          * Create a new instance of [MqttMailbox].
+         * GPS location is mandatory and must be provided.
          */
         suspend operator fun invoke(
             deviceId: Uuid,
+            initialLocation: Location,
             host: String,
             port: Int = PORT_NUMBER_BROKER,
             serializer: SerialFormat = Json,
             retentionTime: Duration = 5.seconds,
             dispatcher: CoroutineDispatcher,
         ): MqttMailbox = coroutineScope {
-            MqttMailbox(deviceId, host, port, serializer, retentionTime, dispatcher).apply {
+            MqttMailbox(deviceId, host, port, serializer, retentionTime, dispatcher, initialLocation).apply {
                 initializeMqttClient()
             }
         }

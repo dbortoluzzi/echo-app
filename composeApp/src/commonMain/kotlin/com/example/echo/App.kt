@@ -39,10 +39,9 @@ fun CollektiveNearbyDevices(modifier: Modifier) {
             }
         },
         onPermissionDenied = {
-            if (viewModel == null) {
-                viewModel = NearbyDevicesViewModel() // Create without location service
-            }
-        }
+            // GPS is mandatory - app cannot function without location
+            viewModel = null
+        },
     )
 
     viewModel?.let { vm ->
@@ -53,10 +52,10 @@ fun CollektiveNearbyDevices(modifier: Modifier) {
         val uuid = vm.deviceId
 
         LaunchedEffect(Unit) {
+            // Start location tracking first - GPS is mandatory
+            vm.startLocationTracking()
+            // Wait for GPS location to be available, then start Collektive program
             vm.startCollektiveProgram()
-            vm.startLocationTracking() // Start location tracking
-            // Test location functionality
-            vm.testLocationFunctionality()
         }
 
         DisposableEffect(vm) {

@@ -9,10 +9,7 @@ import dev.icerock.moko.permissions.location.LOCATION
 import kotlinx.coroutines.delay
 
 @Composable
-actual fun LocationPermissionHandler(
-    onPermissionGranted: (LocationService) -> Unit,
-    onPermissionDenied: () -> Unit
-) {
+actual fun LocationPermissionHandler(onPermissionGranted: (LocationService) -> Unit, onPermissionDenied: () -> Unit) {
     val factory: PermissionsControllerFactory = rememberPermissionsControllerFactory()
     val controller = remember(factory) { factory.createPermissionsController() }
 
@@ -23,10 +20,10 @@ actual fun LocationPermissionHandler(
             println("iOS: Requesting location permission...")
             controller.providePermission(Permission.LOCATION)
             println("iOS: Location permission granted via moko-permissions")
-            
+
             // Give a small delay to ensure permission is fully processed
             delay(500)
-            
+
             val locationService = createLocationService()
             onPermissionGranted(locationService)
         } catch (e: Exception) {

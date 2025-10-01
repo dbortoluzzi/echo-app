@@ -17,6 +17,7 @@ kotlin {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
+            freeCompilerArgs.addAll("-Xexpect-actual-classes")
         }
     }
 
@@ -29,6 +30,13 @@ kotlin {
             baseName = "ComposeApp"
             isStatic = true
         }
+        iosTarget.compilerOptions {
+            freeCompilerArgs.addAll("-Xexpect-actual-classes")
+        }
+    }
+
+    compilerOptions {
+        freeCompilerArgs.addAll("-Xexpect-actual-classes")
     }
 
     sourceSets {
