@@ -20,6 +20,7 @@ kotlinxSerializationJson = "1.9.0"
 logging = "2.0.3"
 materialIconsExtended = "1.7.3"
 permissionsCompose = "0.20.1"
+playServicesLocation = "21.3.0"
 
 [libraries]
 collektive-dsl = { module = "it.unibo.collektive:collektive-dsl", version.ref = "collektiveStdlib" }
@@ -42,6 +43,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 logging = { module = "com.diamondedge:logging", version.ref = "logging" }
 material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
 permissions-compose = { module = "dev.icerock.moko:permissions-compose", version.ref = "permissionsCompose" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

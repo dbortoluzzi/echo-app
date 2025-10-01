@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.example.echo.location.LocationPermissionHandler
 import com.example.echo.ui.Screen
 import com.example.echo.ui.TopBar
 import com.example.echo.viewmodels.NearbyDevicesViewModel
@@ -28,21 +29,48 @@ fun App() {
 @OptIn(ExperimentalUuidApi::class)
 @Composable
 fun CollektiveNearbyDevices(modifier: Modifier) {
-    val viewModel = remember { NearbyDevicesViewModel() }
+    var viewModel by remember { mutableStateOf<NearbyDevicesViewModel?>(null) }
 
-    val devices by viewModel.dataFlow.collectAsState()
-    val connection by viewModel.connectionFlow.collectAsState()
-    val uuid = viewModel.deviceId
-
-    LaunchedEffect(Unit) {
-        viewModel.startCollektiveProgram()
-    }
-
-    Screen(
-        modifier = modifier,
-        devices,
-        connection,
-        uuid,
-        viewModel,
+    // Platform-specific location service initialization
+    LocationPermissionHandler(
+        onPermissionGranted = { locationService ->
+            if (viewModel == null) {
+                viewModel = NearbyDevicesViewModel(locationService = locationService)
+            }
+        },
+        onPermissionDenied = {
+            if (viewModel == null) {
+                viewModel = NearbyDevicesViewModel() // Create without location service
+            }
+        }
     )
+
+    viewModel?.let { vm ->
+        val devices by vm.dataFlow.collectAsState()
+        val connection by vm.connectionFlow.collectAsState()
+        val currentLocation by vm.currentLocationFlow.collectAsState()
+        val locationError by vm.locationErrorFlow.collectAsState()
+        val uuid = vm.deviceId
+
+        LaunchedEffect(Unit) {
+            vm.startCollektiveProgram()
+            vm.startLocationTracking() // Start location tracking
+            // Test location functionality
+            vm.testLocationFunctionality()
+        }
+
+        DisposableEffect(vm) {
+            onDispose {
+                vm.cleanup()
+            }
+        }
+
+        Screen(
+            modifier = modifier,
+            devices,
+            connection,
+            uuid,
+            vm,
+        )
+    }
 }

@@ -4,6 +4,9 @@ import com.diamondedge.logging.logging
 import com.example.echo.DEFAULT_MAX_DISTANCE
 import com.example.echo.DEFAULT_MAX_TIME
 import com.example.echo.gossip.chatMultipleSources
+import com.example.echo.location.Location
+import com.example.echo.location.LocationError
+import com.example.echo.location.LocationService
 import com.example.echo.models.ChatMessage
 import com.example.echo.network.MqttMailbox
 import it.unibo.collektive.Collektive
@@ -19,13 +22,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) {
+class NearbyDevicesViewModel(
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val locationService: LocationService? = null
+) {
     val log = logging("VIEWMODEL")
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -47,6 +58,13 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
 
     private val _sendingCounterFlow = MutableStateFlow(0)
     val sendingCounterFlow: StateFlow<Int> = _sendingCounterFlow.asStateFlow()
+
+    private val _currentLocationFlow = MutableStateFlow<Location?>(null)
+    val currentLocationFlow: StateFlow<Location?> = _currentLocationFlow.asStateFlow()
+
+    private val _locationErrorFlow = MutableStateFlow<LocationError?>(null)
+    val locationErrorFlow: StateFlow<LocationError?> = _locationErrorFlow.asStateFlow()
+
     @OptIn(ExperimentalUuidApi::class)
     val deviceId = Uuid.random()
     private var currentMessage: String = ""
@@ -221,5 +239,152 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     fun updateMessageParameters(lifeTimeSeconds: Double, maxDistanceMeters: Double) {
         messageLifeTime = lifeTimeSeconds
         maxDistance = maxDistanceMeters
+    }
+
+    // Location Services
+    fun startLocationTracking() {
+        locationService?.let { service ->
+            scope.launch {
+                log.i { "Starting location tracking..." }
+                
+                // Give some time for permissions to be processed
+                delay(1000)
+                
+                try {
+                    // Get initial location
+                    val initialLocation = service.getCurrentLocation()
+                    _currentLocationFlow.value = initialLocation
+                    _locationErrorFlow.value = null
+                    
+                    if (initialLocation != null) {
+                        log.i { "Initial location: ${initialLocation.latitude}, ${initialLocation.longitude} (accuracy: ${initialLocation.accuracy}m)" }
+                    } else {
+                        log.w { "Initial location is null" }
+                    }
+
+                    // Start continuous location updates
+                    service.startLocationUpdates { location ->
+                        _currentLocationFlow.value = location
+                        log.i { "Location update: ${location.latitude}, ${location.longitude} (accuracy: ${location.accuracy}m)" }
+                    }
+                } catch (e: LocationError) {
+                    _locationErrorFlow.value = e
+                    log.e { "Location error: ${e::class.simpleName}" }
+                    when (e) {
+                        is LocationError.PermissionDenied -> log.e { "Location permission denied - check device settings or grant permission" }
+                        is LocationError.LocationDisabled -> log.e { "Location services disabled - enable in device settings" }
+                        is LocationError.ServiceUnavailable -> log.e { "Location service unavailable" }
+                        is LocationError.Unknown -> log.e { "Unknown location error: ${e.cause?.message}" }
+                    }
+                } catch (e: Exception) {
+                    _locationErrorFlow.value = LocationError.Unknown(e)
+                    log.e { "Unexpected location error: ${e.message}" }
+                }
+            }
+        } ?: run {
+            log.w { "Location service not available" }
+        }
+    }
+
+    fun stopLocationTracking() {
+        locationService?.stopLocationUpdates()
+        log.i { "Location tracking stopped" }
+    }
+
+    fun getCurrentLocation() {
+        locationService?.let { service ->
+            scope.launch {
+                try {
+                    val location = service.getCurrentLocation()
+                    _currentLocationFlow.value = location
+                    _locationErrorFlow.value = null
+                    
+                    if (location != null) {
+                        log.i { "Current location: ${location.latitude}, ${location.longitude} (accuracy: ${location.accuracy}m)" }
+                    } else {
+                        log.w { "Unable to get current location" }
+                    }
+                } catch (e: LocationError) {
+                    _locationErrorFlow.value = e
+                    log.e { "Failed to get current location: ${e::class.simpleName}" }
+                } catch (e: Exception) {
+                    _locationErrorFlow.value = LocationError.Unknown(e)
+                    log.e { "Unexpected error getting location: ${e.message}" }
+                }
+            }
+        } ?: run {
+            log.w { "Location service not available" }
+        }
+    }
+
+    /**
+     * Calculate distance between two locations using Haversine formula
+     * @param lat1 Latitude of first location
+     * @param lon1 Longitude of first location  
+     * @param lat2 Latitude of second location
+     * @param lon2 Longitude of second location
+     * @return Distance in meters
+     */
+//    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+//        val earthRadius = 6371000.0 // Earth radius in meters
+//
+//        val dLat = Math.toRadians(lat2 - lat1)
+//        val dLon = Math.toRadians(lon2 - lon1)
+//
+//        val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
+//        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+//
+//        return earthRadius * c
+//    }
+
+    fun testLocationFunctionality() {
+        scope.launch {
+            log.i { "Testing location functionality..." }
+            
+            locationService?.let { service ->
+                try {
+                    log.i { "Location enabled: ${service.isLocationEnabled()}" }
+                    
+                    // Wait a bit for permissions to be processed
+                    delay(2000)
+                    
+                    val location = service.getCurrentLocation()
+                    if (location != null) {
+                        log.i { "Test location: ${location.latitude}, ${location.longitude}" }
+                        log.i { "Accuracy: ${location.accuracy}m" }
+                        log.i { "Timestamp: ${location.timestamp}" }
+                    } else {
+                        log.w { "No location available" }
+                    }
+                    
+                    // Test location updates for 30 seconds
+                    log.i { "Starting location updates test for 30 seconds..." }
+                    service.startLocationUpdates { loc ->
+                        log.i { "LOCATION: ${loc.latitude}, ${loc.longitude} (${loc.accuracy}m accuracy)" }
+                    }
+                    
+                    delay(30000) // 30 seconds
+                    service.stopLocationUpdates()
+                    log.i { "Location updates test completed" }
+                    
+                } catch (e: LocationError) {
+                    log.e { "Location test failed: ${e::class.simpleName}" }
+                    when (e) {
+                        is LocationError.PermissionDenied -> log.e { "Location permission denied - check device settings" }
+                        is LocationError.LocationDisabled -> log.e { "Location services disabled - enable in device settings" }
+                        is LocationError.ServiceUnavailable -> log.e { "Location service unavailable" }
+                        is LocationError.Unknown -> log.e { "Unknown location error: ${e.cause?.message}" }
+                    }
+                } catch (e: Exception) {
+                    log.e { "Location test error: ${e.message}" }
+                }
+            } ?: run {
+                log.w { "Location service not available for testing" }
+            }
+        }
+    }
+
+    fun cleanup() {
+        stopLocationTracking()
     }
 }
