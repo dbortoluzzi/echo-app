@@ -331,7 +331,11 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
                 modifier = Modifier.padding(12.dp),
             ) {
                 Text(
-                    text = "Device: ${message.sender}",
+                    text = if (message.sender == uuid) {
+                        "You"
+                    }else{
+                        "Id: ${message.sender}"
+                    },
                     color = if (message.sender == uuid) {
                         MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
                     } else {
