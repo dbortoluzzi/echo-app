@@ -1,10 +1,11 @@
-package com.example.echo.network
+package com.example.echo.network.mqtt
 
 import com.diamondedge.logging.logging
 import com.example.echo.PORT_NUMBER_BROKER
 import com.example.echo.location.Location
 import com.example.echo.models.DeviceLocation
 import com.example.echo.models.DeviceLocationHeartbeat
+import com.example.echo.network.AbstractSerializerMailbox
 import io.github.davidepianca98.MQTTClient
 import io.github.davidepianca98.mqtt.MQTTVersion
 import io.github.davidepianca98.mqtt.Subscription
@@ -53,6 +54,9 @@ class MqttMailbox private constructor(
     // Dedicated JSON serializer for location heartbeat messages
     private val jsonSerializer = Json { ignoreUnknownKeys = true }
 
+    /**
+     * Initialize the MQTT client and connect to the broker.
+     */
     @OptIn(ExperimentalUnsignedTypes::class)
     private fun initializeMqttClient() {
         mqttClient = MQTTClient(
@@ -68,15 +72,16 @@ class MqttMailbox private constructor(
             when {
                 topic.startsWith(HEARTBEAT_PREFIX) -> {
                     // Handle heartbeat with location information
-                    val neighborDeviceId = Uuid.parse(topic.split("/").last())
+                    val neighborDeviceId = Uuid.Companion.parse(topic.split("/").last())
                     addNeighbor(neighborDeviceId)
 
                     // Try to parse location information from heartbeat payload
                     if (payload != null && payload.isNotEmpty()) {
                         try {
-                            val heartbeat = jsonSerializer.decodeFromString<DeviceLocationHeartbeat>(
-                                payload.decodeToString(),
-                            )
+                            val heartbeat =
+                                jsonSerializer.decodeFromString<DeviceLocationHeartbeat>(
+                                    payload.decodeToString(),
+                                )
                             // Save the neighbor's location - this was missing!
                             val neighborLocation = heartbeat.location?.toLocation()!!
                             neighborLocations[neighborDeviceId] = neighborLocation
@@ -88,6 +93,7 @@ class MqttMailbox private constructor(
                         }
                     }
                 }
+
                 topic == deviceTopic(deviceId) -> {
                     // Handle device messages
                     if (payload != null) {
@@ -120,12 +126,15 @@ class MqttMailbox private constructor(
         internalScope.launch(dispatcher) { mqttClient?.run() }
     }
 
+    /**
+     * Sends a heartbeat pulse with the current device location.
+     */
     @OptIn(ExperimentalUnsignedTypes::class, ExperimentalTime::class)
     private suspend fun sendHeartbeatPulse() {
         // Create heartbeat with location information - GPS is mandatory and always available
         val heartbeat = DeviceLocationHeartbeat(
             deviceId = deviceId.toString(),
-            location = DeviceLocation.fromLocation(currentLocation),
+            location = DeviceLocation.Companion.fromLocation(currentLocation),
             timestamp = Clock.System.now().epochSeconds,
         )
 
@@ -147,12 +156,18 @@ class MqttMailbox private constructor(
         sendHeartbeatPulse()
     }
 
+    /**
+     * Cleans up old heartbeat messages and neighbors.
+     */
     private suspend fun cleanHeartbeatPulse() {
         cleanupNeighbors(retentionTime)
         delay(retentionTime)
         cleanHeartbeatPulse()
     }
 
+    /**
+     * Closes the MQTT connection and cleans up resources.
+     */
     override suspend fun close() {
         log.i { "Disconnecting from the broker..." }
         internalScope.cancel()
@@ -161,6 +176,9 @@ class MqttMailbox private constructor(
         log.i("MqttMailbox") { "Disconnected from the broker" }
     }
 
+    /**
+     * Sends a [message] to a specific receiver [receiverId].
+     */
     @OptIn(ExperimentalUnsignedTypes::class)
     override fun onDeliverableReceived(receiverId: Uuid, message: Message<Uuid, Any?>) {
         require(message is SerializedMessage<Uuid>)
@@ -176,8 +194,8 @@ class MqttMailbox private constructor(
     }
 
     /**
-     * Update the current device location for sharing with neighbors
-     * GPS location is mandatory for the app to function
+     * Update the current device [location] for sharing with neighbors.
+     * GPS location is mandatory for the app to function.
      */
     fun updateCurrentLocation(location: Location) {
         currentLocation = location
@@ -185,7 +203,7 @@ class MqttMailbox private constructor(
     }
 
     /**
-     * Get the location of a specific neighbor device
+     * Get the location of a specific neighbor device [neighborId].
      */
     fun getNeighborLocation(neighborId: Uuid): Location? = neighborLocations[neighborId]
 
@@ -202,11 +220,19 @@ class MqttMailbox private constructor(
             initialLocation: Location,
             host: String,
             port: Int = PORT_NUMBER_BROKER,
-            serializer: SerialFormat = Json,
+            serializer: SerialFormat = Json.Default,
             retentionTime: Duration = 5.seconds,
             dispatcher: CoroutineDispatcher,
         ): MqttMailbox = coroutineScope {
-            MqttMailbox(deviceId, host, port, serializer, retentionTime, dispatcher, initialLocation).apply {
+            MqttMailbox(
+                deviceId,
+                host,
+                port,
+                serializer,
+                retentionTime,
+                dispatcher,
+                initialLocation
+            ).apply {
                 initializeMqttClient()
             }
         }

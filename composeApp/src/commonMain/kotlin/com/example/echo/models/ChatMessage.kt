@@ -12,6 +12,8 @@ import kotlin.uuid.Uuid
 
 /**
  * Represents a chat message in the Echo app.
+ * Includes the content of the message [text], the sender's unique ID [sender],
+ * a unique message ID [messageId], a timestamp [timestamp], and distance from the source [distanceFromSource].
  */
 @Serializable
 @OptIn(ExperimentalUuidApi::class)

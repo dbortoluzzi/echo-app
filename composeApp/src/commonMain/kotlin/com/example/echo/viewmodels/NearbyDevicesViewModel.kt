@@ -8,7 +8,7 @@ import com.example.echo.location.Location
 import com.example.echo.location.LocationError
 import com.example.echo.location.LocationService
 import com.example.echo.models.ChatMessage
-import com.example.echo.network.MqttMailbox
+import com.example.echo.network.mqtt.MqttMailbox
 import it.unibo.collektive.Collektive
 import it.unibo.collektive.aggregate.Field
 import it.unibo.collektive.aggregate.api.neighboring
@@ -35,6 +35,10 @@ import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/**
+ * ViewModel for managing nearby devices, location tracking [locationService], and message sending.
+ * 
+ */
 class NearbyDevicesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val locationService: LocationService,
@@ -80,11 +84,14 @@ class NearbyDevicesViewModel(
     enum class ConnectionState {
         CONNECTED,
         DISCONNECTED,
-        SENDING, // New state for when sending messages
+        SENDING, 
     }
 
     private var mqttMailbox: MqttMailbox? = null
 
+    /**
+     * Collektive program using MQTT mailbox and GPS location for proximity-based messaging.
+     */
     @OptIn(ExperimentalUuidApi::class, ExperimentalTime::class)
     private suspend fun collektiveProgram(): Collektive<Uuid, Pair<Set<Uuid>, List<ChatMessage>>> {
         // Wait for GPS location to be available before creating MQTT mailbox
@@ -162,6 +169,9 @@ class NearbyDevicesViewModel(
         }
     }
 
+    /**
+     * Starts the Collektive program after ensuring GPS location is available.
+     */
     @OptIn(ExperimentalUuidApi::class, ExperimentalTime::class)
     fun startCollektiveProgram() {
         scope.launch {
@@ -212,6 +222,10 @@ class NearbyDevicesViewModel(
         }
     }
 
+    /**
+     * Send message with content [message], a [lifeTime] and a maximum distance propagation [maxDistanceMeters].
+     * 
+     */
     @OptIn(ExperimentalTime::class, ExperimentalUuidApi::class)
     fun sendMessage(
         message: String,
@@ -246,6 +260,9 @@ class NearbyDevicesViewModel(
         }
     }
 
+    /**
+     * Start a countdown timer [durationSeconds] for the sending duration, updating every second.
+     */
     private fun startSendingCounter(durationSeconds: Int) {
         scope.launch {
             // Start with the full duration and count down
@@ -262,6 +279,9 @@ class NearbyDevicesViewModel(
         }
     }
 
+    /**
+     * Stop sending the current message when its lifetime expires.
+     */
     @OptIn(ExperimentalTime::class)
     private fun stopSendingMessage() {
         log.i { "Message lifetime expired, stopping transmission" }
@@ -272,12 +292,17 @@ class NearbyDevicesViewModel(
         _sendingCounterFlow.value = 0
     }
 
+    /**
+     * Update message parameters for future messages with new [lifeTimeSeconds] and [maxDistanceMeters].
+     */
     fun updateMessageParameters(lifeTimeSeconds: Double, maxDistanceMeters: Double) {
         messageLifeTime = lifeTimeSeconds
         maxDistance = maxDistanceMeters
     }
 
-    // Location Services
+    /**
+     * Start GPS location tracking, updating location flow and MQTT mailbox.
+     */
     fun startLocationTracking() {
         scope.launch {
             log.i { "Starting location tracking..." }
@@ -331,7 +356,7 @@ class NearbyDevicesViewModel(
     }
 
     /**
-     * Calculate distance between two locations using Haversine formula
+     * Calculate distance between two locations using Haversine formula.
      */
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val earthRadius = 6371000.0 // Earth radius in meters
@@ -345,7 +370,7 @@ class NearbyDevicesViewModel(
     }
 
     /**
-     * Calculate distances to all neighboring devices using GPS coordinates shared via MQTT.
+     * Calculate distances to all neighboring devices [neighborMap] using GPS coordinates shared via MQTT.
      * Excludes the device itself and only processes neighbors with GPS data available.
      */
     @OptIn(ExperimentalUuidApi::class)
@@ -398,10 +423,15 @@ class NearbyDevicesViewModel(
         }
     }
 
+    /**
+     * Cleanup resources when ViewModel is no longer needed.
+     */
     fun cleanup() {
         stopLocationTracking()
     }
-
+    /**
+     * Stop GPS location tracking.
+     */
     fun stopLocationTracking() {
         locationService.stopLocationUpdates()
         log.i { "GPS tracking stopped" }

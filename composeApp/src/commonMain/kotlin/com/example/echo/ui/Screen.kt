@@ -362,7 +362,7 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = message.timestamp.toString().take(16), // Show only date and time
+                        text = message.timestamp.toString().take(16),
                         color = if (message.sender == uuid) {
                             MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                         } else {

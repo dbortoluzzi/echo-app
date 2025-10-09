@@ -10,14 +10,14 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * Computes the minimum gradient distance from a source node to all other nodes in a distributed system
- * using gossip-based communication.
- *
- * The function iteratively propagates [distances] information across
- * neighbors while avoiding loops in the paths.
- * It stabilizes to the minimal distance once information has been fully shared.
- * Broadcasts a message containing the provided [content] to all nodes within the given [maxDistance]
- * for the defined [lifeTime].
+ * Computes a proximity-based gossip chat message propagation.
+ * The algorithm is self-stabilizing and uses distance-based propagation limits.
+ * 
+ * Distances between nodes are calculated using the provided [distances] field.
+ * Nodes marked as [isSource] and with an Id [sourceId] initiate the message with [content].
+ * Messages [messageId] propagate to neighbors based on distance, up to [maxDistance].
+ * Time is tracked with [currentTime] and messages have a lifetime of [lifeTime].
+ * 
  */
 @OptIn(ExperimentalUuidApi::class)
 internal fun Aggregate<Uuid>.gossipChat(
@@ -48,7 +48,7 @@ internal fun Aggregate<Uuid>.gossipChat(
                 val distanceToNeighbor = distanceMap.getOrElse(neighborId) { Double.MAX_VALUE }
                 val totalDistance = neighborMessage.distanceFromSource + distanceToNeighbor
                 // Accept message if we don't have one or if this path is better
-                // Use the sender's maxDistance, not the receiver's
+                // Use the sender's maxDistance to limit propagation
                 if (totalDistance < neighborMessage.maxDistance) {
                     val updatedMessage = neighborMessage.copy(distanceFromSource = totalDistance)
                     if (bestMessage == null || updatedMessage.distanceFromSource < bestMessage.distanceFromSource) {

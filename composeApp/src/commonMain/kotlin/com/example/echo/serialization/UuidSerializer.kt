@@ -9,7 +9,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * Serializer for UUID to enable serialization with kotlinx.serialization
+ * Serializer for UUID to enable serialization with kotlinx.serialization.
  */
 @OptIn(ExperimentalUuidApi::class)
 object UuidSerializer : KSerializer<Uuid> {
