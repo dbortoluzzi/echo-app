@@ -3,6 +3,7 @@ package com.example.echo.viewmodels
 import com.diamondedge.logging.logging
 import com.example.echo.DEFAULT_MAX_DISTANCE
 import com.example.echo.DEFAULT_MAX_TIME
+import com.example.echo.MQTT_HOST
 import com.example.echo.gossip.chatMultipleSources
 import com.example.echo.location.Location
 import com.example.echo.location.LocationError
@@ -103,7 +104,7 @@ class NearbyDevicesViewModel(
             MqttMailbox(
                 deviceId = deviceId,
                 initialLocation = initialLocation,
-                host = "broker.hivemq.com",
+                host = MQTT_HOST,
                 dispatcher = dispatcher,
             ).also { mqttMailbox = it },
         ) {

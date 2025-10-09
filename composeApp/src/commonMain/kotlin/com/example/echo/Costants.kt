@@ -34,3 +34,8 @@ const val MAX_TIME = 120.0
  * Port number of MQTT broker.
  */
 const val PORT_NUMBER_BROKER = 1883
+
+/**
+ * MQTT host.
+ */
+const val MQTT_HOST = "broker.hivemq.com"

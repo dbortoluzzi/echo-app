@@ -1,6 +1,7 @@
 package com.example.echo.network.mqtt
 
 import com.diamondedge.logging.logging
+import com.example.echo.MQTT_HOST
 import com.example.echo.PORT_NUMBER_BROKER
 import com.example.echo.location.Location
 import com.example.echo.models.DeviceLocation
@@ -218,7 +219,7 @@ class MqttMailbox private constructor(
         suspend operator fun invoke(
             deviceId: Uuid,
             initialLocation: Location,
-            host: String,
+            host: String = MQTT_HOST,
             port: Int = PORT_NUMBER_BROKER,
             serializer: SerialFormat = Json.Default,
             retentionTime: Duration = 5.seconds,
