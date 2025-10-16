@@ -12,12 +12,12 @@ import kotlin.uuid.Uuid
 /**
  * Computes a proximity-based gossip chat message propagation.
  * The algorithm is self-stabilizing and uses distance-based propagation limits.
- * 
+ *
  * Distances between nodes are calculated using the provided [distances] field.
  * Nodes marked as [isSource] and with an Id [sourceId] initiate the message with [content].
  * Messages [messageId] propagate to neighbors based on distance, up to [maxDistance].
  * Time is tracked with [currentTime] and messages have a lifetime of [lifeTime].
- * 
+ *
  */
 @OptIn(ExperimentalUuidApi::class)
 internal fun Aggregate<Uuid>.gossipChat(

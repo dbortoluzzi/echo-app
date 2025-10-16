@@ -16,5 +16,5 @@ data class Message(
     val distanceFromSource: Double,
     @Serializable(with = UuidSerializer::class)
     val messageId: Uuid,
-    val maxDistance: Double, 
+    val maxDistance: Double,
 )

@@ -38,7 +38,7 @@ import kotlin.uuid.Uuid
 
 /**
  * ViewModel for managing nearby devices, location tracking [locationService], and message sending.
- * 
+ *
  */
 class NearbyDevicesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -85,7 +85,7 @@ class NearbyDevicesViewModel(
     enum class ConnectionState {
         CONNECTED,
         DISCONNECTED,
-        SENDING, 
+        SENDING,
     }
 
     private var mqttMailbox: MqttMailbox? = null
@@ -132,7 +132,6 @@ class NearbyDevicesViewModel(
             val currentLocation = _currentLocationFlow.value!! // GPS is mandatory, should never be null
 
             log.i { "Current GPS location: ${currentLocation.latitude}, ${currentLocation.longitude}" }
-
 
             log.i { "GPS-based distances calculated: ${distances.toMap()}" }
 
@@ -225,7 +224,7 @@ class NearbyDevicesViewModel(
 
     /**
      * Send message with content [message], a [lifeTime] and a maximum distance propagation [maxDistanceMeters].
-     * 
+     *
      */
     @OptIn(ExperimentalTime::class, ExperimentalUuidApi::class)
     fun sendMessage(
@@ -430,6 +429,7 @@ class NearbyDevicesViewModel(
     fun cleanup() {
         stopLocationTracking()
     }
+
     /**
      * Stop GPS location tracking.
      */

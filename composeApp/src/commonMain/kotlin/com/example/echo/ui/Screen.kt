@@ -333,7 +333,7 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
                 Text(
                     text = if (message.sender == uuid) {
                         "You"
-                    }else{
+                    } else {
                         "Id: ${message.sender}"
                     },
                     color = if (message.sender == uuid) {

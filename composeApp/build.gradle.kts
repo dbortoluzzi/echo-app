@@ -1,4 +1,3 @@
-import org.gradle.kotlin.dsl.invoke
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -105,4 +104,8 @@ dependencies {
 ktlint {
     android.set(true)
     ignoreFailures.set(false)
+    filter {
+        exclude { element -> element.file.path.contains("generated/") }
+        exclude { element -> element.file.path.contains("/build/") }
+    }
 }

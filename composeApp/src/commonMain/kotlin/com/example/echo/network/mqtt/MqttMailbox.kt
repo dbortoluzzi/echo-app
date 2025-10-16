@@ -232,7 +232,7 @@ class MqttMailbox private constructor(
                 serializer,
                 retentionTime,
                 dispatcher,
-                initialLocation
+                initialLocation,
             ).apply {
                 initializeMqttClient()
             }

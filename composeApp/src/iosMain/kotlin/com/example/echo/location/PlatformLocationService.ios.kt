@@ -1,9 +1,22 @@
 package com.example.echo.location
 
-import kotlinx.cinterop.*
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.useContents
 import kotlinx.coroutines.suspendCancellableCoroutine
-import platform.CoreLocation.*
-import platform.Foundation.*
+import platform.CoreLocation.CLAuthorizationStatus
+import platform.CoreLocation.CLLocation
+import platform.CoreLocation.CLLocationManager
+import platform.CoreLocation.CLLocationManagerDelegateProtocol
+import platform.CoreLocation.kCLAuthorizationStatusAuthorizedAlways
+import platform.CoreLocation.kCLAuthorizationStatusAuthorizedWhenInUse
+import platform.CoreLocation.kCLAuthorizationStatusDenied
+import platform.CoreLocation.kCLAuthorizationStatusNotDetermined
+import platform.CoreLocation.kCLAuthorizationStatusRestricted
+import platform.CoreLocation.kCLErrorDenied
+import platform.CoreLocation.kCLErrorLocationUnknown
+import platform.CoreLocation.kCLLocationAccuracyBest
+import platform.Foundation.NSError
+import platform.Foundation.timeIntervalSince1970
 import platform.darwin.NSObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
