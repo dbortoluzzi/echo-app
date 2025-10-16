@@ -56,18 +56,18 @@ Echo implements a **hybrid decentralized architecture**:
 The app implements a **GPS-aware gradient gossip algorithm** built on **Aggregate Computing** principles using the **Collektive** framework.
 
 ### Decentralization
-- ✅ **No central coordinator**: Each node operates autonomously
-- ✅ **Distributed state**: Information spreads peer-to-peer through aggregate constructs
-- ✅ **Local decisions**: Nodes use only neighbor information via Field abstractions
-- ✅ **Global-to-local compilation**: Aggregate programs automatically map to decentralized execution
+- **No central coordinator**: Each node operates autonomously
+- **Distributed state**: Information spreads peer-to-peer through aggregate constructs
+- **Local decisions**: Nodes use only neighbor information via Field abstractions
+- **Global-to-local compilation**: Aggregate programs automatically map to decentralized execution
 
 ### Self-Stabilization
-- ✅ **Convergence guarantee**: Reaches stable state through aggregate computation rounds
-- ✅ **Fault tolerance**: Recovers from node failures via field-based resilience
-- ✅ **Eventual consistency**: System converges despite asynchronous execution
-- ✅ **Dynamic adaptation**: Adjusts to changing network conditions and node availability
+- **Convergence guarantee**: Reaches stable state through aggregate computation rounds
+- **Fault tolerance**: Recovers from node failures via field-based resilience
+- **Eventual consistency**: System converges despite asynchronous execution
+- **Dynamic adaptation**: Adjusts to changing network conditions and node availability
 
 ### Spatial Awareness
-- ✅ **Real distances**: Uses Haversine formula for GPS calculations between neighbors
-- ✅ **Sender-controlled radius**: Message creator sets propagation distance (embedded in message)
+- **Real distances**: Uses Haversine formula for GPS calculations between neighbors
+- **Sender-controlled radius**: Message creator sets propagation distance (embedded in message)
 
