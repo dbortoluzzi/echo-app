@@ -1,0 +1,21 @@
+platform :android do
+  lane :build do
+    gradle(
+      task: "assemble",
+      build_type: "Debug",
+    )
+  end
+end
+
+platform :ios do
+  lane :build do
+    build_app(
+      project: './iosApp/iosApp.xcodeproj',
+      configuration: "Debug",
+      scheme: 'iosApp',
+      archive_path: './build/archives/iOS',
+      buildlog_path: './build/archives/logs/',
+      destination: 'generic/platform=iOS'
+    )
+  end
+end
