@@ -9,3 +9,7 @@ ktlint_function_naming_ignore_when_annotated_with = Composable
 generated_code = true
 ij_formatter_enabled = false
 ktlint = disabled
+
+[**/MainViewController.kt]
+ij_formatter_enabled = false
+ktlint = disabled
