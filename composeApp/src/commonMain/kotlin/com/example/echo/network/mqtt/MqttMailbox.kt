@@ -3,6 +3,7 @@ package com.example.echo.network.mqtt
 import com.diamondedge.logging.logging
 import com.example.echo.MQTT_HOST
 import com.example.echo.PORT_NUMBER_BROKER
+import com.example.echo.WEBSOCKET_ENDPOINT
 import com.example.echo.location.Location
 import com.example.echo.models.DeviceLocation
 import com.example.echo.models.DeviceLocationHeartbeat
@@ -64,7 +65,8 @@ class MqttMailbox private constructor(
             MQTTVersion.MQTT5,
             host,
             port,
-            null,
+            webSocket = WEBSOCKET_ENDPOINT,
+            tls = null,
         ) { message ->
             // Handle incoming messages and heartbeat
             val topic = message.topicName
