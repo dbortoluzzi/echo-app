@@ -1,4 +1,4 @@
-package com.example.echo
+package com.lucamarchi.echo
 
 interface Platform {
     val name: String

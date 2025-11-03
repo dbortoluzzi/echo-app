@@ -1,4 +1,4 @@
-package com.example.echo
+package com.lucamarchi.echo
 
 /**
  * Default max propagation distance in meters.
