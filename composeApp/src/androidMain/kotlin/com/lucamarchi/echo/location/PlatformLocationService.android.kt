@@ -1,4 +1,4 @@
-package com.example.echo.location
+package com.lucamarchi.echo.location
 
 import android.Manifest
 import android.content.Context

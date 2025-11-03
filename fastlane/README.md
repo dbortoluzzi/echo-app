@@ -15,10 +15,34 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 ## Android
 
+### android lint
+
+```sh
+[bundle exec] fastlane android lint
+```
+
+
+
 ### android build
 
 ```sh
 [bundle exec] fastlane android build
+```
+
+
+
+### android release
+
+```sh
+[bundle exec] fastlane android release
+```
+
+
+
+### android deploy
+
+```sh
+[bundle exec] fastlane android deploy
 ```
 
 
@@ -32,6 +56,14 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 ```sh
 [bundle exec] fastlane ios build
+```
+
+
+
+### ios release
+
+```sh
+[bundle exec] fastlane ios release
 ```
 
 

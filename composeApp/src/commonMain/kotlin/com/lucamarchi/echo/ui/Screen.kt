@@ -1,4 +1,4 @@
-package com.example.echo.ui
+package com.lucamarchi.echo.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,14 +42,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.echo.DEFAULT_MAX_DISTANCE
-import com.example.echo.DEFAULT_MAX_TIME
-import com.example.echo.MAX_DISTANCE
-import com.example.echo.MAX_TIME
-import com.example.echo.MIN_DISTANCE
-import com.example.echo.MIN_TIME
-import com.example.echo.models.ChatMessage
-import com.example.echo.viewmodels.NearbyDevicesViewModel
+import com.lucamarchi.echo.DEFAULT_MAX_DISTANCE
+import com.lucamarchi.echo.DEFAULT_MAX_TIME
+import com.lucamarchi.echo.MAX_DISTANCE
+import com.lucamarchi.echo.MAX_TIME
+import com.lucamarchi.echo.MIN_DISTANCE
+import com.lucamarchi.echo.MIN_TIME
+import com.lucamarchi.echo.models.ChatMessage
+import com.lucamarchi.echo.viewmodels.NearbyDevicesViewModel
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -227,7 +227,7 @@ fun ConnectionStatusCard(
     isSending: Boolean,
     sendingCounter: Int = 0,
     discoveredDevicesCount: Int = 0,
-    currentLocation: com.example.echo.location.Location? = null,
+    currentLocation: com.lucamarchi.echo.location.Location? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),

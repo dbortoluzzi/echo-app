@@ -71,11 +71,11 @@ kotlin {
 }
 
 android {
-    namespace = "com.example.echo"
+    namespace = "com.lucamarchi.echo"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.example.echo"
+        applicationId = "com.lucamarchi.echo"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
@@ -94,6 +94,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    lint {
+        disable += "NullSafeMutableLiveData"
     }
 }
 

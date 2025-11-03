@@ -1,4 +1,4 @@
-package com.example.echo.location
+package com.lucamarchi.echo.location
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents

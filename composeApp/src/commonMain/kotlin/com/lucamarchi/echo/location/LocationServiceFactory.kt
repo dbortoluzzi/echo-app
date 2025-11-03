@@ -1,4 +1,4 @@
-package com.example.echo.location
+package com.lucamarchi.echo.location
 
 /**
  * Factory function to create a platform-specific LocationService instance.

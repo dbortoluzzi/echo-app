@@ -1,13 +1,13 @@
-package com.example.echo.network.mqtt
+package com.lucamarchi.echo.network.mqtt
 
 import com.diamondedge.logging.logging
-import com.example.echo.MQTT_HOST
-import com.example.echo.PORT_NUMBER_BROKER
-import com.example.echo.WEBSOCKET_ENDPOINT
-import com.example.echo.location.Location
-import com.example.echo.models.DeviceLocation
-import com.example.echo.models.DeviceLocationHeartbeat
-import com.example.echo.network.AbstractSerializerMailbox
+import com.lucamarchi.echo.MQTT_HOST
+import com.lucamarchi.echo.PORT_NUMBER_BROKER
+import com.lucamarchi.echo.WEBSOCKET_ENDPOINT
+import com.lucamarchi.echo.location.Location
+import com.lucamarchi.echo.models.DeviceLocation
+import com.lucamarchi.echo.models.DeviceLocationHeartbeat
+import com.lucamarchi.echo.network.AbstractSerializerMailbox
 import io.github.davidepianca98.MQTTClient
 import io.github.davidepianca98.mqtt.MQTTVersion
 import io.github.davidepianca98.mqtt.Subscription

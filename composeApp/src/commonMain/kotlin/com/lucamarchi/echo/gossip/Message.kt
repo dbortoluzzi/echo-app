@@ -1,6 +1,6 @@
-package com.example.echo.gossip
+package com.lucamarchi.echo.gossip
 
-import com.example.echo.serialization.UuidSerializer
+import com.lucamarchi.echo.serialization.UuidSerializer
 import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid

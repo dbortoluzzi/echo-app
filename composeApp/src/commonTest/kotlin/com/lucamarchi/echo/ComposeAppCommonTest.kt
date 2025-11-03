@@ -1,4 +1,4 @@
-package com.example.echo
+package com.lucamarchi.echo
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

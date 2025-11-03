@@ -1,6 +1,6 @@
-package com.example.echo.models
+package com.lucamarchi.echo.models
 
-import com.example.echo.serialization.UuidSerializer
+import com.lucamarchi.echo.serialization.UuidSerializer
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime

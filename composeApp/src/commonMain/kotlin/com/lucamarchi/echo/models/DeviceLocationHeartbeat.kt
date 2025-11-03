@@ -1,6 +1,6 @@
-package com.example.echo.models
+package com.lucamarchi.echo.models
 
-import com.example.echo.location.Location
+import com.lucamarchi.echo.location.Location
 import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
 

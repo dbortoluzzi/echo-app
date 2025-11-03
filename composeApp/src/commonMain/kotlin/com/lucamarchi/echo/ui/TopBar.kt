@@ -1,4 +1,4 @@
-package com.example.echo.ui
+package com.lucamarchi.echo.ui
 
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api

@@ -1,4 +1,4 @@
-package com.example.echo.serialization
+package com.lucamarchi.echo.serialization
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind

@@ -1,4 +1,4 @@
-package com.example.echo.location
+package com.lucamarchi.echo.location
 
 /**
  * Get location (position longitude and latitude) on specific platforms.

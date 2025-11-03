@@ -1,21 +1,52 @@
 platform :android do
-  lane :build do
+  lane :lint do
     gradle(
-      task: "assemble",
-      build_type: "Debug",
+      task: "ktlintCheck",
+      project_dir: "./"
     )
   end
+
+  lane :build do
+    gradle(
+      task: "composeApp:assembleDebug",
+      project_dir: "./"
+    )
+  end
+  
+  lane :release do
+    gradle(
+      task: "composeApp:bundleRelease",
+      project_dir: "./"
+    )
+  end
+
+  lane :deploy do
+  end
+
 end
 
 platform :ios do
   lane :build do
+    gradle(
+      task: "composeApp:linkDebugFrameworkIosSimulatorArm64",
+      project_dir: "./"
+    )
+    
+  end
+  
+  lane :release do
+    gradle(
+      task: "composeApp:linkReleaseFrameworkIosArm64",
+      project_dir: "./"
+    )
+
     build_app(
       project: './iosApp/iosApp.xcodeproj',
-      configuration: "Debug",
+      configuration: 'Release',
       scheme: 'iosApp',
       archive_path: './build/archives/iOS',
-      buildlog_path: './build/archives/logs/',
-      destination: 'generic/platform=iOS'
+      buildlog_path: './build/archives/logs/'
     )
   end
 end
+

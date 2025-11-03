@@ -1,4 +1,4 @@
-package com.example.echo
+package com.lucamarchi.echo
 
 class Greeting {
     private val platform = getPlatform()
