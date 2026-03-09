@@ -60,6 +60,14 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 
 
+### ios ios_release
+
+```sh
+[bundle exec] fastlane ios ios_release
+```
+
+
+
 ### ios release
 
 ```sh

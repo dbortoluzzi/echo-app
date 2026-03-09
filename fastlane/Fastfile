@@ -28,25 +28,40 @@ end
 platform :ios do
   lane :build do
     gradle(
-      task: "composeApp:linkDebugFrameworkIosSimulatorArm64",
+      task: "composeApp:linkDebugFrameworkIosArm64",
       project_dir: "./"
     )
     
   end
-  
-  lane :release do
-    gradle(
-      task: "composeApp:linkReleaseFrameworkIosArm64",
-      project_dir: "./"
-    )
 
-    build_app(
-      project: './iosApp/iosApp.xcodeproj',
-      configuration: 'Release',
-      scheme: 'iosApp',
-      archive_path: './build/archives/iOS',
-      buildlog_path: './build/archives/logs/'
-    )
-  end
+    lane :ios_release do
+      gradle(
+        task: "composeApp:linkReleaseFrameworkIosArm64",
+        project_dir: "./"
+      )
+      build_app(
+        project: './iosApp/iosApp.xcodeproj',
+        scheme: "iosApp",
+        configuration: "Release",
+        destination: "generic/platform=iOS"
+      )
+
+    end
+
+    lane :release do
+        gradle(
+          task: "composeApp:linkReleaseFrameworkIosArm64",
+          project_dir: "./"
+        )
+
+        build_app(
+          project: './iosApp/iosApp.xcodeproj',
+          scheme: 'iosApp',
+          configuration: 'Release',
+          destination: 'generic/platform=iOS',
+          allowProvisioningUpdates: true
+        )
+    end
+
 end
 
