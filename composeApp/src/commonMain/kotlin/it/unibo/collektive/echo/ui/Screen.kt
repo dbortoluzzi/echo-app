@@ -1,3 +1,5 @@
+@file:Suppress("MagicNumber")
+
 package it.unibo.collektive.echo.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +55,13 @@ import it.unibo.collektive.echo.viewmodels.NearbyDevicesViewModel
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+private val ConnectedColor = Color(0xFF4CAF50)
+private val SendingColor = Color(0xFFFF9800)
+private val DisconnectedColor = Color(0xFFF44336)
+private const val BACKGROUND_ALPHA = 0.1f
+private const val TIMESTAMP_DISPLAY_LENGTH = 16
+
+/** Main screen composable showing connection status, chat messages, and message input controls. */
 @OptIn(ExperimentalUuidApi::class)
 @Composable
 fun Screen(
@@ -221,6 +230,19 @@ fun Screen(
     }
 }
 
+private fun connectionColor(state: NearbyDevicesViewModel.ConnectionState): Color = when (state) {
+    NearbyDevicesViewModel.ConnectionState.CONNECTED -> ConnectedColor
+    NearbyDevicesViewModel.ConnectionState.SENDING -> SendingColor
+    NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> DisconnectedColor
+}
+
+private fun connectionLabel(state: NearbyDevicesViewModel.ConnectionState): String = when (state) {
+    NearbyDevicesViewModel.ConnectionState.CONNECTED -> "Connected"
+    NearbyDevicesViewModel.ConnectionState.SENDING -> "Sending Message..."
+    NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> "Disconnected"
+}
+
+/** Card displaying the current MQTT connection state, device count, and GPS coordinates. */
 @Composable
 fun ConnectionStatusCard(
     connection: NearbyDevicesViewModel.ConnectionState,
@@ -229,15 +251,13 @@ fun ConnectionStatusCard(
     discoveredDevicesCount: Int = 0,
     currentLocation: it.unibo.collektive.echo.location.Location? = null,
 ) {
+    val stateColor = connectionColor(connection)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = when (connection) {
-                NearbyDevicesViewModel.ConnectionState.CONNECTED -> Color(0xFF4CAF50).copy(alpha = 0.1f)
-                NearbyDevicesViewModel.ConnectionState.SENDING -> Color(0xFFFF9800).copy(alpha = 0.1f)
-                NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color(0xFFF44336).copy(alpha = 0.1f)
-            },
+            containerColor = stateColor.copy(alpha = BACKGROUND_ALPHA),
         ),
     ) {
         Row(
@@ -250,27 +270,15 @@ fun ConnectionStatusCard(
             Surface(
                 modifier = Modifier.size(12.dp),
                 shape = CircleShape,
-                color = when (connection) {
-                    NearbyDevicesViewModel.ConnectionState.CONNECTED -> Color(0xFF4CAF50)
-                    NearbyDevicesViewModel.ConnectionState.SENDING -> Color(0xFFFF9800)
-                    NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color(0xFFF44336)
-                },
+                color = stateColor,
             ) {}
 
             Column {
                 Text(
-                    text = when (connection) {
-                        NearbyDevicesViewModel.ConnectionState.CONNECTED -> "Connected"
-                        NearbyDevicesViewModel.ConnectionState.SENDING -> "Sending Message..."
-                        NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> "Disconnected"
-                    },
+                    text = connectionLabel(connection),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Medium,
-                    color = when (connection) {
-                        NearbyDevicesViewModel.ConnectionState.CONNECTED -> Color(0xFF4CAF50)
-                        NearbyDevicesViewModel.ConnectionState.SENDING -> Color(0xFFFF9800)
-                        NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color(0xFFF44336)
-                    },
+                    color = stateColor,
                 )
 
                 Text(
@@ -284,7 +292,7 @@ fun ConnectionStatusCard(
                     Text(
                         text = "📍 GPS: ${location.latitude}, ${location.longitude}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF4CAF50),
+                        color = ConnectedColor,
                         maxLines = 1,
                     )
                 }
@@ -297,13 +305,14 @@ fun ConnectionStatusCard(
                     text = "${sendingCounter}s",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFFFF9800),
+                    color = SendingColor,
                 )
             }
         }
     }
 }
 
+/** Displays a single chat message bubble, aligned right for sent messages and left for received ones. */
 @OptIn(ExperimentalUuidApi::class)
 @Composable
 fun MessageItem(message: ChatMessage, uuid: Uuid) {
@@ -362,7 +371,7 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = message.timestamp.toString().take(16),
+                        text = message.timestamp.toString().take(TIMESTAMP_DISPLAY_LENGTH),
                         color = if (message.sender == uuid) {
                             MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                         } else {

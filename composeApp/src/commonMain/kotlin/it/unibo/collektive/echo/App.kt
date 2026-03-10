@@ -20,6 +20,7 @@ import it.unibo.collektive.echo.viewmodels.NearbyDevicesViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.uuid.ExperimentalUuidApi
 
+/** Root composable that sets up the Material theme, scaffold, and top bar. */
 @Composable
 @Preview
 fun App() {
@@ -33,6 +34,7 @@ fun App() {
     }
 }
 
+/** Handles location permission flow and initialises the [NearbyDevicesViewModel] once granted. */
 @OptIn(ExperimentalUuidApi::class)
 @Composable
 fun CollektiveNearbyDevices(modifier: Modifier) {
@@ -52,10 +54,10 @@ fun CollektiveNearbyDevices(modifier: Modifier) {
     )
 
     viewModel?.let { vm ->
-        val devices by vm.dataFlow.collectAsState()
+//        val devices by vm.dataFlow.collectAsState()
         val connection by vm.connectionFlow.collectAsState()
-        val currentLocation by vm.currentLocationFlow.collectAsState()
-        val locationError by vm.locationErrorFlow.collectAsState()
+//        val currentLocation by vm.currentLocationFlow.collectAsState()
+//        val locationError by vm.locationErrorFlow.collectAsState()
         val uuid = vm.deviceId
 
         LaunchedEffect(Unit) {

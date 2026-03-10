@@ -8,6 +8,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 
+/** Top app bar displaying the "ECHO" title centered with Material 3 styling. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopBar() {

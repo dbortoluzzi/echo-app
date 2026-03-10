@@ -27,6 +27,11 @@ import kotlin.coroutines.resumeWithException
 @OptIn(ExperimentalForeignApi::class)
 actual class PlatformLocationService : LocationService {
 
+    private companion object {
+        /** Number of milliseconds in one second, used for timestamp conversion. */
+        const val MILLIS_PER_SECOND = 1000
+    }
+
     private val locationManager = CLLocationManager()
     private var delegate: CLLocationManagerDelegateImpl? = null
     private var locationUpdateCallback: ((Location) -> Unit)? = null
@@ -35,6 +40,14 @@ actual class PlatformLocationService : LocationService {
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = 10.0 // 10 meters
     }
+
+    /** Converts a CoreLocation [CLLocation] to the domain [Location] model. */
+    private fun CLLocation.toEchoLocation(): Location = Location(
+        latitude = coordinate.useContents { latitude },
+        longitude = coordinate.useContents { longitude },
+        accuracy = horizontalAccuracy.toFloat(),
+        timestamp = (timestamp.timeIntervalSince1970 * MILLIS_PER_SECOND).toLong(),
+    )
 
     actual override suspend fun getCurrentLocation(): Location? {
         // Request permission if not already granted
@@ -52,14 +65,8 @@ actual class PlatformLocationService : LocationService {
                 onLocationUpdate = { locations ->
                     val location = locations.lastOrNull() as? CLLocation
                     if (location != null) {
-                        val echoLocation = Location(
-                            latitude = location.coordinate.useContents { latitude },
-                            longitude = location.coordinate.useContents { longitude },
-                            accuracy = location.horizontalAccuracy.toFloat(),
-                            timestamp = (location.timestamp.timeIntervalSince1970 * 1000).toLong(),
-                        )
                         locationManager.stopUpdatingLocation()
-                        continuation.resume(echoLocation)
+                        continuation.resume(location.toEchoLocation())
                     } else {
                         continuation.resume(null)
                     }
@@ -106,13 +113,7 @@ actual class PlatformLocationService : LocationService {
             onLocationUpdate = { locations ->
                 val location = locations.lastOrNull() as? CLLocation
                 if (location != null) {
-                    val echoLocation = Location(
-                        latitude = location.coordinate.useContents { latitude },
-                        longitude = location.coordinate.useContents { longitude },
-                        accuracy = location.horizontalAccuracy.toFloat(),
-                        timestamp = (location.timestamp.timeIntervalSince1970 * 1000).toLong(),
-                    )
-                    onLocationUpdate(echoLocation)
+                    onLocationUpdate(location.toEchoLocation())
                 }
             },
             onLocationError = { error ->
@@ -145,45 +146,48 @@ actual class PlatformLocationService : LocationService {
         val authStatus = CLLocationManager.authorizationStatus()
         println("iOS Location Authorization Status: $authStatus")
 
-        when (authStatus) {
+        val granted = when (authStatus) {
             kCLAuthorizationStatusAuthorizedWhenInUse -> {
                 println("Location permission: Authorized when in use")
-                return true
+                true
             }
 
             kCLAuthorizationStatusAuthorizedAlways -> {
                 println("Location permission: Authorized always")
-                return true
+                true
             }
 
             kCLAuthorizationStatusNotDetermined -> {
                 println("Location permission: Not determined - requesting permission")
-                return false
+                false
             }
 
             kCLAuthorizationStatusDenied -> {
                 println("Location permission: Denied")
-                return false
+                false
             }
 
             kCLAuthorizationStatusRestricted -> {
                 println("Location permission: Restricted")
-                return false
+                false
             }
 
             else -> {
                 println("Location permission: Unknown status")
-                return false
+                false
             }
         }
+        return granted
     }
 
+    /** Requests the iOS "when in use" location authorization from the user. */
     fun requestLocationPermission() {
         println("Requesting iOS location permission...")
         locationManager.requestWhenInUseAuthorization()
     }
 }
 
+/** Implementation of [CLLocationManagerDelegateProtocol] that forwards location events to callbacks. */
 @OptIn(ExperimentalForeignApi::class)
 class CLLocationManagerDelegateImpl(
     private val onLocationUpdate: (List<*>) -> Unit,

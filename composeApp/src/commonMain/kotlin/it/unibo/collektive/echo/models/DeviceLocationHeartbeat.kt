@@ -22,9 +22,12 @@ data class DeviceLocationHeartbeat(
  */
 @Serializable
 data class DeviceLocation(val latitude: Double, val longitude: Double, val accuracy: Float?, val timestamp: Long) {
+    /** Converts this network-serializable location to a domain [Location] instance. */
     fun toLocation(): Location = Location(latitude, longitude, accuracy, timestamp)
 
+    /** Factory methods for creating [DeviceLocation] instances. */
     companion object {
+        /** Creates a [DeviceLocation] from a domain [Location]. */
         fun fromLocation(location: Location): DeviceLocation = DeviceLocation(
             location.latitude,
             location.longitude,

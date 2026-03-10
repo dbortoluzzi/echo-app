@@ -31,6 +31,9 @@ constructor(
 
 /**
  * Configuration for gossip algorithm parameters.
+ *
+ * @property maxDistance maximum propagation distance in metres.
+ * @property lifeTime message time-to-live in seconds.
  */
 @Serializable
 data class GossipConfig(

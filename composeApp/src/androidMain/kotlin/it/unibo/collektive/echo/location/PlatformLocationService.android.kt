@@ -24,6 +24,15 @@ actual class PlatformLocationService(private val context: Context) : LocationSer
     private var locationCallback: LocationCallback? = null
     private var locationRequest: LocationRequest? = null
 
+    /** Configuration constants for Android location updates. */
+    companion object {
+        /** Interval in milliseconds between location updates. */
+        private const val LOCATION_UPDATE_INTERVAL_MS = 5000L
+
+        /** Minimum interval in milliseconds between location updates. */
+        private const val LOCATION_MIN_UPDATE_INTERVAL_MS = 2000L
+    }
+
     actual override suspend fun getCurrentLocation(): Location? {
         if (!hasLocationPermission()) {
             throw LocationError.PermissionDenied
@@ -60,8 +69,12 @@ actual class PlatformLocationService(private val context: Context) : LocationSer
                     continuation.resumeWithException(LocationError.Unknown(exception))
                 }
             } catch (e: SecurityException) {
+                println("Android: Location security exception: ${e.message}")
                 continuation.resumeWithException(LocationError.PermissionDenied)
-            } catch (e: Exception) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught")
+                e: RuntimeException,
+            ) {
                 continuation.resumeWithException(LocationError.Unknown(e))
             }
         }
@@ -76,8 +89,8 @@ actual class PlatformLocationService(private val context: Context) : LocationSer
             throw LocationError.LocationDisabled
         }
 
-        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L)
-            .setMinUpdateIntervalMillis(2000L)
+        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_UPDATE_INTERVAL_MS)
+            .setMinUpdateIntervalMillis(LOCATION_MIN_UPDATE_INTERVAL_MS)
             .build()
 
         locationCallback = object : LocationCallback() {
@@ -97,13 +110,16 @@ actual class PlatformLocationService(private val context: Context) : LocationSer
 
         try {
             fusedLocationClient.requestLocationUpdates(
-                locationRequest!!,
-                locationCallback!!,
+                checkNotNull(locationRequest) { "locationRequest must be initialised" },
+                checkNotNull(locationCallback) { "locationCallback must be initialised" },
                 Looper.getMainLooper(),
             )
         } catch (_: SecurityException) {
             throw LocationError.PermissionDenied
-        } catch (e: Exception) {
+        } catch (
+            @Suppress("TooGenericExceptionCaught")
+            e: RuntimeException,
+        ) {
             throw LocationError.Unknown(e)
         }
     }

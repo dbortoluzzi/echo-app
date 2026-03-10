@@ -44,6 +44,7 @@ class NearbyDevicesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val locationService: LocationService,
 ) {
+    /** Logger instance for ViewModel diagnostics. */
     val log = logging("VIEWMODEL")
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -51,27 +52,41 @@ class NearbyDevicesViewModel(
     @OptIn(ExperimentalUuidApi::class)
     private val _dataFlow = MutableStateFlow<Set<Uuid>>(emptySet())
 
+    /** Flow of discovered device UUIDs. */
     @OptIn(ExperimentalUuidApi::class)
     val dataFlow: StateFlow<Set<Uuid>> = _dataFlow.asStateFlow()
 
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
+
+    /** Flow of the current MQTT connection state. */
     val connectionFlow: StateFlow<ConnectionState> = _connectionFlow.asStateFlow()
 
     private val _messagesFlow = MutableStateFlow<List<ChatMessage>>(emptyList())
+
+    /** Flow of received and sent chat messages. */
     val messagesFlow: StateFlow<List<ChatMessage>> = _messagesFlow.asStateFlow()
 
     private val _isSendingFlow = MutableStateFlow(false)
+
+    /** Flow indicating whether a message is currently being broadcast. */
     val isSendingFlow: StateFlow<Boolean> = _isSendingFlow.asStateFlow()
 
     private val _sendingCounterFlow = MutableStateFlow(0)
+
+    /** Flow of the remaining seconds while a message is being sent. */
     val sendingCounterFlow: StateFlow<Int> = _sendingCounterFlow.asStateFlow()
 
     private val _currentLocationFlow = MutableStateFlow<Location?>(null)
+
+    /** Flow of the device's most recent GPS [Location], or `null` if unknown. */
     val currentLocationFlow: StateFlow<Location?> = _currentLocationFlow.asStateFlow()
 
     private val _locationErrorFlow = MutableStateFlow<LocationError?>(null)
+
+    /** Flow of the latest [LocationError], or `null` when no error is present. */
     val locationErrorFlow: StateFlow<LocationError?> = _locationErrorFlow.asStateFlow()
 
+    /** Randomly-generated unique identifier for this device instance. */
     @OptIn(ExperimentalUuidApi::class)
     val deviceId = Uuid.random()
     private var currentMessage: String = ""
@@ -82,10 +97,28 @@ class NearbyDevicesViewModel(
     private var messageLifeTime: Double = DEFAULT_MAX_TIME
     private var maxDistance: Double = DEFAULT_MAX_DISTANCE
 
+    /** Represents the MQTT broker connection state. */
     enum class ConnectionState {
+        /** Successfully connected to the broker. */
         CONNECTED,
+
+        /** Not connected to the broker. */
         DISCONNECTED,
+
+        /** Actively broadcasting a message. */
         SENDING,
+    }
+
+    /** Constants used by the nearby-devices view model. */
+    companion object {
+        /** Interval in milliseconds between GPS availability checks. */
+        private const val GPS_POLL_INTERVAL_MS = 500L
+
+        /** Mean Earth radius in metres, used by the Haversine formula. */
+        private const val EARTH_RADIUS_METERS = 6371000.0
+
+        /** Degrees-per-half-circle, used to convert degrees to radians. */
+        private const val DEGREES_HALF_CIRCLE = 180.0
     }
 
     private var mqttMailbox: MqttMailbox? = null
@@ -96,8 +129,9 @@ class NearbyDevicesViewModel(
     @OptIn(ExperimentalUuidApi::class, ExperimentalTime::class)
     private suspend fun collektiveProgram(): Collektive<Uuid, Pair<Set<Uuid>, List<ChatMessage>>> {
         // Wait for GPS location to be available before creating MQTT mailbox
-        val initialLocation = _currentLocationFlow.value
-            ?: throw IllegalStateException("GPS location is required but not available for MQTT initialization")
+        val initialLocation = checkNotNull(_currentLocationFlow.value) {
+            "GPS location is required but not available for MQTT initialization"
+        }
 
         return Collektive(
             deviceId,
@@ -150,7 +184,8 @@ class NearbyDevicesViewModel(
             val chatMessages = allSourceMessages.mapNotNull { (senderId, message) ->
                 if (message.content.isNotEmpty()) {
                     log.i {
-                        "Received gossip message from $senderId: '${message.content}' at distance ${message.distanceFromSource}"
+                        "Received gossip message from $senderId: " +
+                            "'${message.content}' at distance ${message.distanceFromSource}"
                     }
                     ChatMessage(
                         text = message.content,
@@ -180,7 +215,7 @@ class NearbyDevicesViewModel(
             // Wait for GPS location to be available - GPS is mandatory
             while (_currentLocationFlow.value == null) {
                 log.i { "Waiting for GPS location before starting Collektive program..." }
-                delay(500) // Check every 500ms
+                delay(GPS_POLL_INTERVAL_MS) // Check periodically
             }
 
             _connectionFlow.value = ConnectionState.CONNECTED
@@ -200,12 +235,14 @@ class NearbyDevicesViewModel(
 
                     if (!isDuplicate) {
                         log.i {
-                            "Adding NEW message to UI: '${newMessage.text}' from ${newMessage.sender} (ID: ${newMessage.messageId})"
+                            "Adding NEW message to UI: '${newMessage.text}' " +
+                                "from ${newMessage.sender} (ID: ${newMessage.messageId})"
                         }
                         currentMessages.add(newMessage)
                     } else {
                         log.i {
-                            "Skipping duplicate message: '${newMessage.text}' from ${newMessage.sender} (ID: ${newMessage.messageId})"
+                            "Skipping duplicate message: '${newMessage.text}' " +
+                                "from ${newMessage.sender} (ID: ${newMessage.messageId})"
                         }
                     }
                 }
@@ -321,7 +358,8 @@ class NearbyDevicesViewModel(
                 mqttMailbox?.updateCurrentLocation(initialLocation)
 
                 log.i {
-                    "Initial location: ${initialLocation.latitude}, ${initialLocation.longitude} (accuracy: ${initialLocation.accuracy}m)"
+                    "Initial location: ${initialLocation.latitude}, " +
+                        "${initialLocation.longitude} (accuracy: ${initialLocation.accuracy}m)"
                 }
 
                 // Start continuous location updates
@@ -340,14 +378,20 @@ class NearbyDevicesViewModel(
                     is LocationError.PermissionDenied -> log.e {
                         "GPS permission denied - app cannot function without location access"
                     }
+
                     is LocationError.LocationDisabled -> log.e {
                         "GPS services disabled - app requires GPS to be enabled"
                     }
+
                     is LocationError.ServiceUnavailable -> log.e { "GPS service unavailable - app cannot function" }
+
                     is LocationError.Unknown -> log.e { "Unknown GPS error: ${e.cause?.message}" }
                 }
                 throw e // Re-throw since GPS is mandatory
-            } catch (e: Exception) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught")
+                e: RuntimeException,
+            ) {
                 _locationErrorFlow.value = LocationError.Unknown(e)
                 log.e { "Unexpected GPS error: ${e.message}" }
                 throw LocationError.Unknown(e)
@@ -359,14 +403,13 @@ class NearbyDevicesViewModel(
      * Calculate distance between two locations using Haversine formula.
      */
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val earthRadius = 6371000.0 // Earth radius in meters
-
-        val dLat = (lat2 - lat1) * PI / 180.0
-        val dLon = (lon2 - lon1) * PI / 180.0
-        val a = sin(dLat / 2).pow(2) + cos(lat1 * PI / 180.0) * cos(lat2 * PI / 180.0) * sin(dLon / 2).pow(2)
+        val dLat = (lat2 - lat1) * PI / DEGREES_HALF_CIRCLE
+        val dLon = (lon2 - lon1) * PI / DEGREES_HALF_CIRCLE
+        val a = sin(dLat / 2).pow(2) +
+            cos(lat1 * PI / DEGREES_HALF_CIRCLE) * cos(lat2 * PI / DEGREES_HALF_CIRCLE) * sin(dLon / 2).pow(2)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
-        return earthRadius * c
+        return EARTH_RADIUS_METERS * c
     }
 
     /**
@@ -375,11 +418,12 @@ class NearbyDevicesViewModel(
      */
     @OptIn(ExperimentalUuidApi::class)
     private fun calculateNeighborDistances(neighborMap: Field<Uuid, *>): Field<Uuid, Double> {
-        val currentLocation = _currentLocationFlow.value
-            ?: throw IllegalStateException("GPS location is required but not available")
-        val mailbox = mqttMailbox
-            ?: throw IllegalStateException("MQTT mailbox is required but not available")
-
+        val currentLocation = checkNotNull(_currentLocationFlow.value) {
+            "GPS location is required but not available"
+        }
+        val mailbox = checkNotNull(mqttMailbox) {
+            "MQTT mailbox is required but not available"
+        }
         // Filter out this device itself and neighbors without GPS data
         val actualNeighbors = neighborMap.neighbors.filter { id ->
             // Skip if this is the same device
@@ -397,7 +441,8 @@ class NearbyDevicesViewModel(
         }
 
         log.i {
-            "Processing ${actualNeighbors.size} actual neighbors with GPS data out of ${neighborMap.neighbors.size} total discovered devices"
+            "Processing ${actualNeighbors.size} actual neighbors with GPS data" +
+                " out of ${neighborMap.neighbors.size} total discovered devices"
         }
 
         // Create a map of distances for valid neighbors only

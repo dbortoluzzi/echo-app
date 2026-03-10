@@ -47,6 +47,8 @@ class MqttMailbox private constructor(
 ) : AbstractSerializerMailbox<Uuid>(deviceId, serializer, retentionTime) {
     private val internalScope = CoroutineScope(dispatcher)
     private var mqttClient: MQTTClient? = null
+
+    /** Logger instance for MQTT mailbox diagnostics. */
     val log = logging("MQTT-MAILBOX")
 
     // Store current location and neighbor locations - GPS is mandatory
@@ -89,9 +91,13 @@ class MqttMailbox private constructor(
                             val neighborLocation = heartbeat.location?.toLocation()!!
                             neighborLocations[neighborDeviceId] = neighborLocation
                             log.d {
-                                "Received GPS location from neighbor $neighborDeviceId: ${neighborLocation.latitude}, ${neighborLocation.longitude}"
+                                "Received GPS location from neighbor $neighborDeviceId: " +
+                                    "${neighborLocation.latitude}, ${neighborLocation.longitude}"
                             }
-                        } catch (e: Exception) {
+                        } catch (
+                            @Suppress("TooGenericExceptionCaught")
+                            e: RuntimeException,
+                        ) {
                             log.w { "Failed to parse location from heartbeat: ${e.message}" }
                         }
                     }
@@ -144,7 +150,7 @@ class MqttMailbox private constructor(
         val payload = try {
             val json = jsonSerializer.encodeToString(heartbeat)
             json.encodeToByteArray().toUByteArray()
-        } catch (e: Exception) {
+        } catch (e: SerializationException) {
             log.e { "Failed to serialize heartbeat with GPS location: ${e.message}" }
             throw IllegalStateException("Cannot serialize GPS location data - app cannot function", e)
         }
