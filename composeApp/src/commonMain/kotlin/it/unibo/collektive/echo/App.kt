@@ -13,11 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import it.unibo.collektive.echo.location.LocationPermissionHandler
 import it.unibo.collektive.echo.ui.Screen
 import it.unibo.collektive.echo.ui.TopBar
 import it.unibo.collektive.echo.viewmodels.NearbyDevicesViewModel
-import androidx.compose.ui.tooling.preview.Preview
 import kotlin.uuid.ExperimentalUuidApi
 
 /** Root composable that sets up the Material theme, scaffold, and top bar. */
