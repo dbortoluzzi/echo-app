@@ -88,11 +88,12 @@ class MqttMailbox private constructor(
                                     payload.decodeToString(),
                                 )
                             // Save the neighbor's location - this was missing!
-                            val neighborLocation = heartbeat.location?.toLocation()!!
-                            neighborLocations[neighborDeviceId] = neighborLocation
-                            log.d {
-                                "Received GPS location from neighbor $neighborDeviceId: " +
-                                    "${neighborLocation.latitude}, ${neighborLocation.longitude}"
+                            heartbeat.location?.toLocation()?.let { neighborLocation ->
+                                neighborLocations[neighborDeviceId] = neighborLocation
+                                log.d {
+                                    "Received GPS location from neighbor $neighborDeviceId: " +
+                                        "${neighborLocation.latitude}, ${neighborLocation.longitude}"
+                                }
                             }
                         } catch (
                             @Suppress("TooGenericExceptionCaught")
