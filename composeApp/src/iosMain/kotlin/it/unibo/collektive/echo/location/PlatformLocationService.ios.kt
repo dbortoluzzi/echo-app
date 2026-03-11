@@ -63,24 +63,24 @@ actual class PlatformLocationService : LocationService {
         return suspendCancellableCoroutine { continuation ->
             val delegate = CLLocationManagerDelegateImpl(
                 onLocationUpdate = { locations ->
-                    val location = locations.lastOrNull() as? CLLocation
-                    if (location != null) {
+                    if (continuation.isActive) {
+                        val location = locations.lastOrNull() as? CLLocation
                         locationManager.stopUpdatingLocation()
-                        continuation.resume(location.toEchoLocation())
-                    } else {
-                        continuation.resume(null)
+                        continuation.resume(location?.toEchoLocation())
                     }
                 },
                 onLocationError = { error ->
-                    locationManager.stopUpdatingLocation()
-                    when (error.code) {
-                        kCLErrorDenied -> continuation.resumeWithException(LocationError.PermissionDenied)
+                    if (continuation.isActive) {
+                        locationManager.stopUpdatingLocation()
+                        when (error.code) {
+                            kCLErrorDenied -> continuation.resumeWithException(LocationError.PermissionDenied)
 
-                        kCLErrorLocationUnknown -> continuation.resume(null)
+                            kCLErrorLocationUnknown -> continuation.resume(null)
 
-                        else -> continuation.resumeWithException(
-                            LocationError.Unknown(RuntimeException(error.localizedDescription)),
-                        )
+                            else -> continuation.resumeWithException(
+                                LocationError.Unknown(RuntimeException(error.localizedDescription)),
+                            )
+                        }
                     }
                 },
             )
