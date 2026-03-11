@@ -19,13 +19,13 @@ kotlin {
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
         allWarningsAsErrors.set(false)
+        freeCompilerArgs.add("-Xexpect-actual-classes")
     }
 
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
-            freeCompilerArgs.add("-Xexpect-actual-classes")
         }
     }
 
@@ -45,7 +45,7 @@ kotlin {
                 implementation(compose.material3)
                 implementation(compose.ui)
                 implementation(compose.components.resources)
-                implementation(compose.components.uiToolingPreview)
+                implementation(libs.ui.tooling.preview)
                 implementation(libs.androidx.lifecycle.viewmodelCompose)
                 implementation(libs.androidx.lifecycle.runtimeCompose)
                 implementation(libs.bundles.collektive)
@@ -114,23 +114,13 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
-// Force-disable warnings-as-errors after all plugins (kotlin-qa) have configured tasks
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
-    compilerOptions {
-        allWarningsAsErrors.set(false)
-    }
-}
-
-// Exclude generated sources from detekt analysis
-tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
-    exclude("**/generated/**")
-}
-tasks.withType<io.gitlab.arturbosch.detekt.DetektCreateBaselineTask>().configureEach {
-    exclude("**/generated/**")
-}
-
-// Exclude generated sources from CPD (copy-paste detection) analysis
+// Exclude generated sources from detekt and CPD analysis
 afterEvaluate {
+    tasks.matching { it.name.startsWith("detekt") }.configureEach {
+        if (this is SourceTask) {
+            exclude("**/generated/**")
+        }
+    }
     tasks.withType<de.aaschmid.gradle.plugins.cpd.Cpd>().configureEach {
         source = fileTree(projectDir) {
             include("src/**/*.kt")
