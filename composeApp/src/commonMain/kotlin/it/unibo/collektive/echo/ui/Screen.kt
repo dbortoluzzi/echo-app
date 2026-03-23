@@ -83,6 +83,7 @@ fun Screen(
     val sendingCounter by viewModel.sendingCounterFlow.collectAsState()
     val discoveredDevices by viewModel.dataFlow.collectAsState()
     val currentLocation by viewModel.currentLocationFlow.collectAsState()
+    val connectionErrorMessage by viewModel.connectionErrorMessageFlow.collectAsState()
 
     // Auto-scroll when new messages arrive
     LaunchedEffect(messages.size) {
@@ -103,6 +104,7 @@ fun Screen(
             sendingCounter = sendingCounter,
             discoveredDevicesCount = discoveredDevices.size,
             currentLocation = currentLocation,
+            connectionErrorMessage = connectionErrorMessage,
         )
 
         Spacer(Modifier.padding(4.dp))
@@ -250,6 +252,7 @@ fun ConnectionStatusCard(
     sendingCounter: Int = 0,
     discoveredDevicesCount: Int = 0,
     currentLocation: it.unibo.collektive.echo.location.Location? = null,
+    connectionErrorMessage: String? = null,
 ) {
     val stateColor = connectionColor(connection)
 
@@ -286,6 +289,14 @@ fun ConnectionStatusCard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
+
+                if (!connectionErrorMessage.isNullOrBlank()) {
+                    Text(
+                        text = connectionErrorMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DisconnectedColor,
+                    )
+                }
 
                 // GPS Status indicator
                 currentLocation?.let { location ->

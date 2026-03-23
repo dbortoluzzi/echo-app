@@ -64,6 +64,11 @@ class NearbyDevicesViewModel(
     /** Flow of the current MQTT connection state. */
     val connectionFlow: StateFlow<ConnectionState> = _connectionFlow.asStateFlow()
 
+    private val _connectionErrorMessageFlow = MutableStateFlow<String?>(null)
+
+    /** Flow of latest human-readable connection error to show in UI. */
+    val connectionErrorMessageFlow: StateFlow<String?> = _connectionErrorMessageFlow.asStateFlow()
+
     private val _messagesFlow = MutableStateFlow<List<ChatMessage>>(emptyList())
 
     /** Flow of received and sent chat messages. */
@@ -116,6 +121,7 @@ class NearbyDevicesViewModel(
     companion object {
         /** Interval in milliseconds between GPS availability checks. */
         private const val GPS_POLL_INTERVAL_MS = 500L
+        private const val MQTT_RETRY_INTERVAL_MS = 3000L
 
         /** Mean Earth radius in metres, used by the Haversine formula. */
         private const val EARTH_RADIUS_METERS = 6371000.0
@@ -222,44 +228,59 @@ class NearbyDevicesViewModel(
                 log.i { "Waiting for GPS location before starting Collektive program..." }
                 delay(GPS_POLL_INTERVAL_MS) // Check periodically
             }
-
-            _connectionFlow.value = ConnectionState.CONNECTED
-            val program = collektiveProgram()
-            log.i { "Collektive program started with GPS location: ${_currentLocationFlow.value}" }
             while (isActive) {
-                val (newDevices, newMessages) = program.cycle()
-                _dataFlow.value = newDevices
+                try {
+                    val program = collektiveProgram()
+                    _connectionFlow.value = ConnectionState.CONNECTED
+                    _connectionErrorMessageFlow.value = null
+                    log.i { "Collektive program started with GPS location: ${_currentLocationFlow.value}" }
 
-                // Update messages, only add new unique messages based on messageId
-                val currentMessages = _messagesFlow.value.toMutableList()
-                newMessages.forEach { newMessage ->
-                    // Check if we already have this message (same messageId)
-                    val isDuplicate = currentMessages.any { existing ->
-                        existing.messageId == newMessage.messageId
-                    }
+                    while (isActive) {
+                        val (newDevices, newMessages) = program.cycle()
+                        _dataFlow.value = newDevices
 
-                    if (!isDuplicate) {
-                        log.i {
-                            "Adding NEW message to UI: '${newMessage.text}' " +
-                                "from ${newMessage.sender} (ID: ${newMessage.messageId})"
+                        // Update messages, only add new unique messages based on messageId
+                        val currentMessages = _messagesFlow.value.toMutableList()
+                        newMessages.forEach { newMessage ->
+                            // Check if we already have this message (same messageId)
+                            val isDuplicate = currentMessages.any { existing ->
+                                existing.messageId == newMessage.messageId
+                            }
+
+                            if (!isDuplicate) {
+                                log.i {
+                                    "Adding NEW message to UI: '${newMessage.text}' " +
+                                        "from ${newMessage.sender} (ID: ${newMessage.messageId})"
+                                }
+                                currentMessages.add(newMessage)
+                            } else {
+                                log.i {
+                                    "Skipping duplicate message: '${newMessage.text}' " +
+                                        "from ${newMessage.sender} (ID: ${newMessage.messageId})"
+                                }
+                            }
                         }
-                        currentMessages.add(newMessage)
-                    } else {
-                        log.i {
-                            "Skipping duplicate message: '${newMessage.text}' " +
-                                "from ${newMessage.sender} (ID: ${newMessage.messageId})"
+                        _messagesFlow.value = currentMessages
+
+                        // Check if current message has expired
+                        val currentTime = Clock.System.now().epochSeconds.toDouble()
+                        if (currentMessage.isNotEmpty() && (currentTime - messageStartTime) > messageLifeTime) {
+                            stopSendingMessage()
                         }
+
+                        delay(1.seconds)
                     }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught")
+                    e: Exception,
+                ) {
+                    _connectionFlow.value = ConnectionState.DISCONNECTED
+                    _connectionErrorMessageFlow.value = "Connessione al broker fallita. Riprovo..."
+                    log.e { "MQTT connection/setup failed: ${e.message}. Retrying..." }
+                    delay(MQTT_RETRY_INTERVAL_MS)
                 }
-                _messagesFlow.value = currentMessages
-
-                // Check if current message has expired
-                val currentTime = Clock.System.now().epochSeconds.toDouble()
-                if (currentMessage.isNotEmpty() && (currentTime - messageStartTime) > messageLifeTime) {
-                    stopSendingMessage()
-                }
-
-                delay(1.seconds)
             }
         }
     }
