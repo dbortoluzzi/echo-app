@@ -179,10 +179,10 @@ class MqttMailbox private constructor(
             log.i { "Resolved IPv4 candidates for '$host': $resolvedIpv4Hosts" }
         }
         val hostsToTry = listOf(host) + resolvedIpv4Hosts
-        var lastError: Exception? = null
-        hostsToTry.distinct().forEach { candidateHost ->
-            try {
-                return MQTTClient(
+        var lastError: Throwable? = null
+        return hostsToTry.asSequence().distinct().map { candidateHost ->
+            runCatching {
+                MQTTClient(
                     MQTTVersion.MQTT3_1_1,
                     candidateHost,
                     port,
@@ -195,18 +195,13 @@ class MqttMailbox private constructor(
                         log.w { "Connected via IPv4 fallback host: $candidateHost" }
                     }
                 }
-            } catch (
-                @Suppress("TooGenericExceptionCaught")
-                e: Exception,
-            ) {
-                lastError = e
-                log.w { "MQTT connection attempt failed for host '$candidateHost': ${e.message}" }
+            }.onFailure {
+                log.w { "Connection failure to $candidateHost" }
+                lastError = it
             }
-        }
-        throw IllegalStateException(
-            "Failed to create MQTT client for all configured hosts",
-            checkNotNull(lastError),
-        )
+        }.firstOrNull { it.isSuccess }
+            ?.getOrThrow()
+            ?: error("Cannot instance MQTT client for any host. Last error:\n${lastError?.stackTraceToString()}")
     }
 
     /**
