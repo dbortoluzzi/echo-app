@@ -1,21 +1,24 @@
 package it.unibo.collektive.echo.network.mqtt
 
-import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.allocPointerTo
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
-import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.toKString
+import kotlinx.cinterop.value
 import platform.posix.AF_INET
-import platform.posix.INET_ADDRSTRLEN
+import platform.posix.NI_MAXHOST
+import platform.posix.NI_NUMERICHOST
 import platform.posix.addrinfo
 import platform.posix.freeaddrinfo
 import platform.posix.getaddrinfo
-import platform.posix.inet_ntop
-import platform.posix.sockaddr_in
+import platform.posix.getnameinfo
 
+@OptIn(ExperimentalForeignApi::class)
 internal actual fun resolveIpv4Candidates(host: String): List<String> = memScoped {
     val hints = alloc<addrinfo>().apply {
         ai_family = AF_INET
@@ -28,32 +31,37 @@ internal actual fun resolveIpv4Candidates(host: String): List<String> = memScope
         ai_next = null
     }
 
-    val resultHolder = alloc<CPointer<addrinfo>?>()
-    val status = getaddrinfo(host, null, hints.ptr, resultHolder.ptr)
+    val result = allocPointerTo<addrinfo>()
+    val status = getaddrinfo(host, null, hints.ptr, result.ptr)
     if (status != 0) {
         return@memScoped emptyList()
     }
 
-    val ipv4Addresses = mutableListOf<String>()
-    var current = resultHolder.value
-    while (current != null) {
-        val info = current.pointed
-        if (info.ai_family == AF_INET && info.ai_addr != null) {
-            val sockaddr = info.ai_addr!!.reinterpret<sockaddr_in>().pointed
-            val buffer = alloc<ByteVar>(INET_ADDRSTRLEN)
-            val converted = inet_ntop(
-                AF_INET,
-                sockaddr.sin_addr.ptr,
-                buffer.ptr,
-                INET_ADDRSTRLEN.toUInt(),
-            )
-            if (converted != null) {
-                ipv4Addresses += buffer.toKString()
+    try {
+        buildList {
+            var current = result.value
+            while (current != null) {
+                val info = current.pointed
+                val addr = info.ai_addr
+                if (info.ai_family == AF_INET && addr != null) {
+                    val hostBuffer = allocArray<ByteVar>(NI_MAXHOST)
+                    val callReturnStatus = getnameinfo(
+                        addr,
+                        info.ai_addrlen,
+                        hostBuffer,
+                        NI_MAXHOST.toUInt(),
+                        null,
+                        0u,
+                        NI_NUMERICHOST,
+                    )
+                    if (callReturnStatus == 0) {
+                        add(hostBuffer.toKString())
+                    }
+                }
+                current = info.ai_next
             }
-        }
-        current = info.ai_next
+        }.distinct()
+    } finally {
+        result.value?.let(::freeaddrinfo)
     }
-
-    freeaddrinfo(resultHolder.value)
-    ipv4Addresses.distinct()
 }
