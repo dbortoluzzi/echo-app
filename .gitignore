@@ -20,3 +20,4 @@ captures
 fastlane/report.xml
 .specstory/
 .cursorindexingignore
+upload-keystore.jks
