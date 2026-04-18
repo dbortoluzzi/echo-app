@@ -36,7 +36,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,7 +74,6 @@ fun Screen(
     var messageText by remember { mutableStateOf("") }
 
     val listState = rememberLazyListState()
-    rememberCoroutineScope()
 
     // Collect messages and sending state from ViewModel
     val messages by viewModel.messagesFlow.collectAsState()
@@ -189,7 +187,6 @@ fun Screen(
                 placeholder = { Text("Write a message...") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(24.dp),
-                enabled = !isSending,
             )
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -197,35 +194,18 @@ fun Screen(
             Box {
                 FloatingActionButton(
                     onClick = {
-                        if (messageText.isNotBlank() && !isSending) {
-                            viewModel.sendMessage(
-                                message = messageText,
-                                lifeTime = secondsValue.toDouble(),
-                                maxDistanceMeters = metersValue.toDouble(),
-                            )
+                        if (messageText.isNotBlank()) {
+                            viewModel.sendMessage(message = messageText)
                             messageText = ""
                         }
                     },
                     modifier = Modifier.size(50.dp),
-                    containerColor = if (isSending) {
-                        MaterialTheme.colorScheme.secondary
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
                 ) {
-                    if (isSending) {
-                        Text(
-                            text = "$sendingCounter",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondary,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send Message",
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send Message",
+                    )
                 }
             }
         }

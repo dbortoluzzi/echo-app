@@ -9,6 +9,7 @@ import it.unibo.collektive.aggregate.toMap
 import it.unibo.collektive.echo.DEFAULT_MAX_DISTANCE
 import it.unibo.collektive.echo.DEFAULT_MAX_TIME
 import it.unibo.collektive.echo.MQTT_HOST
+import it.unibo.collektive.echo.gossip.ActiveGossipSend
 import it.unibo.collektive.echo.gossip.chatMultipleSources
 import it.unibo.collektive.echo.location.Location
 import it.unibo.collektive.echo.location.LocationError
@@ -76,12 +77,12 @@ class NearbyDevicesViewModel(
 
     private val _isSendingFlow = MutableStateFlow(false)
 
-    /** Flow indicating whether a message is currently being broadcast. */
+    /** Flow indicating whether at least one outbound message is still within its TTL. */
     val isSendingFlow: StateFlow<Boolean> = _isSendingFlow.asStateFlow()
 
     private val _sendingCounterFlow = MutableStateFlow(0)
 
-    /** Flow of the remaining seconds while a message is being sent. */
+    /** Flow of the maximum remaining seconds among active outbound messages (0 if none). */
     val sendingCounterFlow: StateFlow<Int> = _sendingCounterFlow.asStateFlow()
 
     private val _currentLocationFlow = MutableStateFlow<Location?>(null)
@@ -97,11 +98,23 @@ class NearbyDevicesViewModel(
     /** Randomly-generated unique identifier for this device instance. */
     @OptIn(ExperimentalUuidApi::class)
     val deviceId = Uuid.random()
-    private var currentMessage: String = ""
 
+    /**
+     * Outbound messages this device is still broadcasting (TTL from [messageStartTime]).
+     * Each Collektive round turns them into [ActiveGossipSend] with `elapsedSeconds` computed there.
+     */
     @OptIn(ExperimentalUuidApi::class)
-    private var currentMessageId: Uuid = Uuid.random()
-    private var messageStartTime: Long = 0L
+    private data class ActiveBroadcast(
+        val messageId: Uuid,
+        val content: String,
+        val messageStartTime: Long,
+        val lifeTime: Double,
+        val maxDistance: Double,
+    )
+
+    private val _activeBroadcastsFlow = MutableStateFlow<List<ActiveBroadcast>>(emptyList())
+
+    /** Latest slider-chosen TTL and radius; used by [sendMessage] unless you pass overrides explicitly. */
     private var messageLifeTime: Double = DEFAULT_MAX_TIME
     private var maxDistance: Double = DEFAULT_MAX_DISTANCE
 
@@ -155,19 +168,21 @@ class NearbyDevicesViewModel(
             val neighborMap = neighboring(localId)
             val neighbors = neighborMap.neighbors.ids.set
 
-            // Get current time
-            val currentTime = Clock.System.now().epochSeconds.toDouble()
-
-            // Determine if this device is a source (has a message to send)
-            val isSource = currentMessage.isNotEmpty() &&
-                (currentTime - messageStartTime) <= messageLifeTime
-
-            log.i { isSource }
-
-            if (isSource) {
-                log.i {
-                    "Device is source: sending message '$currentMessage' (${currentTime - messageStartTime}s elapsed)"
+            val nowEpoch = Clock.System.now().epochSeconds
+            val broadcasts = _activeBroadcastsFlow.value
+            val activeSends =
+                broadcasts.map { b ->
+                    ActiveGossipSend(
+                        messageId = b.messageId,
+                        content = b.content,
+                        lifeTime = b.lifeTime,
+                        maxDistance = b.maxDistance,
+                        elapsedSeconds = (nowEpoch - b.messageStartTime).toDouble(),
+                    )
                 }
+
+            if (broadcasts.isNotEmpty()) {
+                log.i { "Device is source: ${broadcasts.size} active broadcast(s)" }
             }
 
             // Calculate distances to neighboring devices using GPS coordinates
@@ -183,17 +198,13 @@ class NearbyDevicesViewModel(
             // Collect all messages from all potential sources using chatMultipleSources
             val allSourceMessages = chatMultipleSources(
                 distances = distances,
-                isSource = isSource,
-                currentTime = currentTime - messageStartTime,
-                content = currentMessage,
-                messageId = currentMessageId,
-                lifeTime = messageLifeTime,
-                maxDistance = maxDistance,
+                localSends = activeSends,
             )
 
             // Convert messages to ChatMessage objects
-            val chatMessages = allSourceMessages.mapNotNull { (senderId, message) ->
+            val chatMessages = allSourceMessages.mapNotNull { (source, message) ->
                 if (message.content.isNotEmpty()) {
+                    val (senderId, _) = source
                     log.i {
                         "Received gossip message from $senderId: " +
                             "'${message.content}' at distance ${message.distanceFromSource}"
@@ -231,18 +242,35 @@ class NearbyDevicesViewModel(
             while (isActive) {
                 try {
                     val program = collektiveProgram()
-                    _connectionFlow.value = ConnectionState.CONNECTED
                     _connectionErrorMessageFlow.value = null
                     log.i { "Collektive program started with GPS location: ${_currentLocationFlow.value}" }
 
                     while (isActive) {
+                        // Outside the Collektive block: refresh UI state and TTL without mutating the aggregate program.
+                        val nowEpoch = Clock.System.now().epochSeconds
+                        _activeBroadcastsFlow.value =
+                            _activeBroadcastsFlow.value.filter { b ->
+                                nowEpoch - b.messageStartTime <= b.lifeTime
+                            }
+                        val broadcasts = _activeBroadcastsFlow.value
+                        _isSendingFlow.value = broadcasts.isNotEmpty()
+                        _connectionFlow.value =
+                            if (broadcasts.isNotEmpty()) {
+                                ConnectionState.SENDING
+                            } else {
+                                ConnectionState.CONNECTED
+                            }
+                        _sendingCounterFlow.value =
+                            broadcasts.maxOfOrNull { b ->
+                                val left = b.lifeTime - (nowEpoch - b.messageStartTime)
+                                left.toInt().coerceAtLeast(0)
+                            } ?: 0
+
                         val (newDevices, newMessages) = program.cycle()
                         _dataFlow.value = newDevices
 
-                        // Update messages, only add new unique messages based on messageId
                         val currentMessages = _messagesFlow.value.toMutableList()
                         newMessages.forEach { newMessage ->
-                            // Check if we already have this message (same messageId)
                             val isDuplicate = currentMessages.any { existing ->
                                 existing.messageId == newMessage.messageId
                             }
@@ -261,12 +289,6 @@ class NearbyDevicesViewModel(
                             }
                         }
                         _messagesFlow.value = currentMessages
-
-                        // Check if current message has expired
-                        val currentTime = Clock.System.now().epochSeconds.toDouble()
-                        if (currentMessage.isNotEmpty() && (currentTime - messageStartTime) > messageLifeTime) {
-                            stopSendingMessage()
-                        }
 
                         delay(1.seconds)
                     }
@@ -292,8 +314,8 @@ class NearbyDevicesViewModel(
     @OptIn(ExperimentalTime::class, ExperimentalUuidApi::class)
     fun sendMessage(
         message: String,
-        lifeTime: Double = DEFAULT_MAX_TIME,
-        maxDistanceMeters: Double = DEFAULT_MAX_DISTANCE,
+        lifeTime: Double = messageLifeTime,
+        maxDistanceMeters: Double = maxDistance,
     ) {
         scope.launch {
             log.i { "Message: '$message'" }
@@ -301,11 +323,20 @@ class NearbyDevicesViewModel(
             _connectionFlow.value = ConnectionState.SENDING
             _sendingCounterFlow.value = 0
 
-            currentMessage = message
-            currentMessageId = Uuid.random()
-            messageStartTime = Clock.System.now().epochSeconds
             messageLifeTime = lifeTime
             maxDistance = maxDistanceMeters
+
+            val currentMessageId = Uuid.random()
+            val messageStartTime = Clock.System.now().epochSeconds
+            val broadcast =
+                ActiveBroadcast(
+                    messageId = currentMessageId,
+                    content = message,
+                    messageStartTime = messageStartTime,
+                    lifeTime = lifeTime,
+                    maxDistance = maxDistanceMeters,
+                )
+            _activeBroadcastsFlow.value = _activeBroadcastsFlow.value + broadcast
 
             // Add the message to local messages immediately
             val localMessage = ChatMessage(
@@ -317,46 +348,11 @@ class NearbyDevicesViewModel(
             val currentMessages = _messagesFlow.value.toMutableList()
             currentMessages.add(localMessage)
             _messagesFlow.value = currentMessages
-
-            // Start counter for sending duration
-            startSendingCounter(lifeTime.toInt())
         }
     }
 
     /**
-     * Start a countdown timer [durationSeconds] for the sending duration, updating every second.
-     */
-    private fun startSendingCounter(durationSeconds: Int) {
-        scope.launch {
-            // Start with the full duration and count down
-            _sendingCounterFlow.value = durationSeconds
-
-            for (i in durationSeconds - 1 downTo 0) {
-                delay(1000) // Wait 1 second
-                if (_isSendingFlow.value) { // Only continue if still sending
-                    _sendingCounterFlow.value = i
-                } else {
-                    break // Stop if sending was cancelled
-                }
-            }
-        }
-    }
-
-    /**
-     * Stop sending the current message when its lifetime expires.
-     */
-    @OptIn(ExperimentalTime::class)
-    private fun stopSendingMessage() {
-        log.i { "Message lifetime expired, stopping transmission" }
-        currentMessage = ""
-        messageStartTime = 0L
-        _isSendingFlow.value = false
-        _connectionFlow.value = ConnectionState.CONNECTED
-        _sendingCounterFlow.value = 0
-    }
-
-    /**
-     * Update message parameters for future messages with new [lifeTimeSeconds] and [maxDistanceMeters].
+     * Updates TTL and max radius for the next [sendMessage] (kept in sync with the UI sliders).
      */
     fun updateMessageParameters(lifeTimeSeconds: Double, maxDistanceMeters: Double) {
         messageLifeTime = lifeTimeSeconds
