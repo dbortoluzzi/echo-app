@@ -112,15 +112,7 @@ class MqttMailbox private constructor(
      */
     @OptIn(ExperimentalUnsignedTypes::class)
     private fun initializeMqttClient() {
-        mqttClient = MQTTClient(
-            MQTTVersion.MQTT3_1_1,
-            host,
-            port,
-            webSocket = WEBSOCKET_ENDPOINT,
-            tls = null,
-        ) { message ->
-            handleIncomingMessage(message.topicName, message.payload?.toByteArray())
-        }
+        mqttClient = createMqttClientWithFallback()
 
         log.i { "Connected to the broker" }
 
@@ -161,16 +153,8 @@ class MqttMailbox private constructor(
                 }
                 delay(RECONNECT_DELAY)
                 try {
-                    // Recreate the MQTT client from scratch
-                    mqttClient = MQTTClient(
-                        MQTTVersion.MQTT3_1_1,
-                        host,
-                        port,
-                        webSocket = WEBSOCKET_ENDPOINT,
-                        tls = null,
-                    ) { message ->
-                        handleIncomingMessage(message.topicName, message.payload?.toByteArray())
-                    }
+                    // Recreate the MQTT client from scratch.
+                    mqttClient = createMqttClientWithFallback()
                     mqttClient?.subscribe(
                         listOf(
                             Subscription(HEARTBEAT_WILD_CARD, SubscriptionOptions(Qos.AT_MOST_ONCE)),
@@ -186,6 +170,38 @@ class MqttMailbox private constructor(
                 }
             }
         }
+    }
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    private fun createMqttClientWithFallback(): MQTTClient {
+        val resolvedIpv4Hosts = resolveIpv4Candidates(host)
+        if (resolvedIpv4Hosts.isNotEmpty()) {
+            log.i { "Resolved IPv4 candidates for '$host': $resolvedIpv4Hosts" }
+        }
+        val hostsToTry = listOf(host) + resolvedIpv4Hosts
+        var lastError: Throwable? = null
+        return hostsToTry.asSequence().distinct().map { candidateHost ->
+            runCatching {
+                MQTTClient(
+                    MQTTVersion.MQTT3_1_1,
+                    candidateHost,
+                    port,
+                    webSocket = WEBSOCKET_ENDPOINT,
+                    tls = null,
+                ) { message ->
+                    handleIncomingMessage(message.topicName, message.payload?.toByteArray())
+                }.also {
+                    if (candidateHost != host) {
+                        log.w { "Connected via IPv4 fallback host: $candidateHost" }
+                    }
+                }
+            }.onFailure {
+                log.w { "Connection failure to $candidateHost" }
+                lastError = it
+            }
+        }.firstOrNull { it.isSuccess }
+            ?.getOrThrow()
+            ?: error("Cannot instance MQTT client for any host. Last error:\n${lastError?.stackTraceToString()}")
     }
 
     /**

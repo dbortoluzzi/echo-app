@@ -3,7 +3,6 @@ package it.unibo.collektive.echo.gossip
 import it.unibo.collektive.aggregate.Field
 import it.unibo.collektive.aggregate.api.Aggregate
 import it.unibo.collektive.aggregate.api.share
-import it.unibo.collektive.aggregate.toMap
 import it.unibo.collektive.aggregate.values
 import it.unibo.collektive.echo.DEFAULT_MAX_DISTANCE
 import it.unibo.collektive.echo.DEFAULT_MAX_TIME
@@ -11,6 +10,7 @@ import it.unibo.collektive.stdlib.collapse.fold
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+internal typealias MessageWithDistance = Pair<Message?, Double>
 /**
  * Computes a proximity-based gossip chat message propagation.
  * The algorithm is self-stabilizing and uses distance-based propagation limits.
@@ -42,24 +42,30 @@ internal fun Aggregate<Uuid>.gossipChat(
     }
 
     // Share messages with neighbors
-    val distanceMap = distances.all.toMap()
     val result = share(localMessage) { neighborMessages: Field<Uuid, Message?> ->
-        var bestMessage = localMessage
-        for ((neighborId, neighborMessage) in neighborMessages.neighbors.toMap()) {
-            if (neighborMessage != null && neighborMessage.content.isNotEmpty()) {
-                val distanceToNeighbor = distanceMap.getOrElse(neighborId) { Double.MAX_VALUE }
+        neighborMessages.alignedMap(distances) { _: Uuid, message: Message?, distance: Double ->
+            message to distance
+        }.neighbors.values.fold(localMessage to 0.0) { bestMessage: MessageWithDistance, fromNeighbor: MessageWithDistance ->
+            val (neighborMessage, distanceToNeighbor) = fromNeighbor
+            if (neighborMessage == null || neighborMessage.content.isEmpty()) {
+                bestMessage
+            } else {
+                val (bestMessagePayload, bestMessageDistance) = bestMessage
                 val totalDistance = neighborMessage.distanceFromSource + distanceToNeighbor
                 // Accept message if we don't have one or if this path is better
                 // Use the sender's maxDistance to limit propagation
                 if (totalDistance < neighborMessage.maxDistance) {
-                    val updatedMessage = neighborMessage.copy(distanceFromSource = totalDistance)
-                    if (bestMessage == null || updatedMessage.distanceFromSource < bestMessage.distanceFromSource) {
-                        bestMessage = updatedMessage
+                    val updatedMessage = neighborMessage.copy(distanceFromSource = totalDistance) to distanceToNeighbor
+                    if (bestMessagePayload == null || updatedMessage.first.distanceFromSource < bestMessagePayload.distanceFromSource) {
+                        updatedMessage
+                    } else {
+                        bestMessage
                     }
+                } else {
+                    bestMessage
                 }
             }
-        }
-        bestMessage
+        }.first
     }
 
     // Return message for non-source nodes only

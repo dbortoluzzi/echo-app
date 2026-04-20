@@ -18,3 +18,6 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 fastlane/report.xml
+.specstory/
+.cursorindexingignore
+upload-keystore.jks
