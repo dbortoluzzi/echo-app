@@ -16,6 +16,7 @@ import kotlin.uuid.Uuid
  */
 @OptIn(ExperimentalUuidApi::class)
 internal typealias GossipSource = Pair<Uuid, Uuid>
+internal typealias MessageWithDistance = Pair<Message?, Double>
 
 /**
  * Local outbound burst still within TTL, passed into [chatMultipleSources].
@@ -62,16 +63,19 @@ internal fun Aggregate<Uuid>.gossipChat(
     // Share messages with neighbors
     val distanceMap = distances.all.toMap()
     val result = share(localMessage) { neighborMessages: Field<Uuid, Message?> ->
-        neighborMessages.neighbors.toMap().entries.fold(localMessage) { bestMessage, (neighborId, neighborMessage) ->
+        neighborMessages.alignedMap(distances) { _: Uuid, message: Message?, distance: Double ->
+            message to distance
+        }.neighbors.values.fold(localMessage to 0.0) { bestMessage: MessageWithDistance, fromNeighbor: MessageWithDistance ->
+            val (neighborMessage, distanceToNeighbor) = fromNeighbor
             if (neighborMessage == null || neighborMessage.content.isEmpty()) {
                 bestMessage
             } else {
-                val distanceToNeighbor = distanceMap.getOrElse(neighborId) { Double.MAX_VALUE }
+                val (bestMessagePayload, bestMessageDistance) = bestMessage
                 val totalDistance = neighborMessage.distanceFromSource + distanceToNeighbor
                 // Accept if within the sender's maxDistance and this path improves distance-from-source
                 if (totalDistance < neighborMessage.maxDistance) {
-                    val updatedMessage = neighborMessage.copy(distanceFromSource = totalDistance)
-                    if (bestMessage == null || updatedMessage.distanceFromSource < bestMessage.distanceFromSource) {
+                    val updatedMessage = neighborMessage.copy(distanceFromSource = totalDistance) to distanceToNeighbor
+                    if (bestMessagePayload == null || updatedMessage.first.distanceFromSource < bestMessagePayload.distanceFromSource) {
                         updatedMessage
                     } else {
                         bestMessage
@@ -80,7 +84,7 @@ internal fun Aggregate<Uuid>.gossipChat(
                     bestMessage
                 }
             }
-        }
+        }.first
     }
 
     // Return message for non-source nodes only
