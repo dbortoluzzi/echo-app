@@ -8,7 +8,9 @@ import it.unibo.collektive.aggregate.ids
 import it.unibo.collektive.aggregate.toMap
 import it.unibo.collektive.echo.DEFAULT_MAX_DISTANCE
 import it.unibo.collektive.echo.DEFAULT_MAX_TIME
+import it.unibo.collektive.echo.MessageSettings
 import it.unibo.collektive.echo.MQTT_HOST
+import it.unibo.collektive.echo.saveMessageSettings
 import it.unibo.collektive.echo.gossip.ActiveGossipSend
 import it.unibo.collektive.echo.gossip.chatMultipleSources
 import it.unibo.collektive.echo.location.Location
@@ -21,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +48,9 @@ import kotlin.uuid.Uuid
  *
  */
 class NearbyDevicesViewModel(
+    @OptIn(ExperimentalUuidApi::class)
+    val deviceId: Uuid,
+    initialMessageSettings: MessageSettings = MessageSettings(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val locationService: LocationService,
 ) {
@@ -85,6 +91,12 @@ class NearbyDevicesViewModel(
     /** Flow of the maximum remaining seconds among active outbound messages (0 if none). */
     val sendingCounterFlow: StateFlow<Int> = _sendingCounterFlow.asStateFlow()
 
+    private val _messageLifeTimeFlow = MutableStateFlow(initialMessageSettings.ttlSeconds)
+    val messageLifeTimeFlow: StateFlow<Double> = _messageLifeTimeFlow.asStateFlow()
+
+    private val _maxDistanceFlow = MutableStateFlow(initialMessageSettings.maxDistanceMeters)
+    val maxDistanceFlow: StateFlow<Double> = _maxDistanceFlow.asStateFlow()
+
     private val _currentLocationFlow = MutableStateFlow<Location?>(null)
 
     /** Flow of the device's most recent GPS [Location], or `null` if unknown. */
@@ -94,10 +106,6 @@ class NearbyDevicesViewModel(
 
     /** Flow of the latest [LocationError], or `null` when no error is present. */
     val locationErrorFlow: StateFlow<LocationError?> = _locationErrorFlow.asStateFlow()
-
-    /** Randomly-generated unique identifier for this device instance. */
-    @OptIn(ExperimentalUuidApi::class)
-    val deviceId = Uuid.random()
 
     /**
      * Outbound messages this device is still broadcasting (TTL from [messageStartTime]).
@@ -115,8 +123,8 @@ class NearbyDevicesViewModel(
     private val _activeBroadcastsFlow = MutableStateFlow<List<ActiveBroadcast>>(emptyList())
 
     /** Latest slider-chosen TTL and radius; used by [sendMessage] unless you pass overrides explicitly. */
-    private var messageLifeTime: Double = DEFAULT_MAX_TIME
-    private var maxDistance: Double = DEFAULT_MAX_DISTANCE
+    private var messageLifeTime: Double = initialMessageSettings.ttlSeconds
+    private var maxDistance: Double = initialMessageSettings.maxDistanceMeters
 
     /** Represents the MQTT broker connection state. */
     enum class ConnectionState {
@@ -357,6 +365,14 @@ class NearbyDevicesViewModel(
     fun updateMessageParameters(lifeTimeSeconds: Double, maxDistanceMeters: Double) {
         messageLifeTime = lifeTimeSeconds
         maxDistance = maxDistanceMeters
+        _messageLifeTimeFlow.value = lifeTimeSeconds
+        _maxDistanceFlow.value = maxDistanceMeters
+        saveMessageSettings(
+            MessageSettings(
+                ttlSeconds = lifeTimeSeconds,
+                maxDistanceMeters = maxDistanceMeters,
+            ),
+        )
     }
 
     /**
@@ -499,7 +515,13 @@ class NearbyDevicesViewModel(
      * Cleanup resources when ViewModel is no longer needed.
      */
     fun cleanup() {
+        val mailbox = mqttMailbox
+        mqttMailbox = null
+        CoroutineScope(dispatcher).launch {
+            mailbox?.close()
+        }
         stopLocationTracking()
+        scope.cancel()
     }
 
     /**
