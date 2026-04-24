@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,22 +31,22 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import it.unibo.collektive.echo.DEFAULT_MAX_DISTANCE
-import it.unibo.collektive.echo.DEFAULT_MAX_TIME
 import it.unibo.collektive.echo.MAX_DISTANCE
 import it.unibo.collektive.echo.MAX_TIME
 import it.unibo.collektive.echo.MIN_DISTANCE
@@ -60,6 +61,8 @@ private val SendingColor = Color(0xFFFF9800)
 private val DisconnectedColor = Color(0xFFF44336)
 private const val BACKGROUND_ALPHA = 0.1f
 private const val TIMESTAMP_DISPLAY_LENGTH = 16
+private const val SHORT_ID_HEAD_LENGTH = 6
+private const val SHORT_ID_TAIL_LENGTH = 4
 
 /** Main screen composable showing connection status, chat messages, and message input controls. */
 @OptIn(ExperimentalUuidApi::class)
@@ -70,12 +73,10 @@ fun Screen(
     uuid: Uuid,
     viewModel: NearbyDevicesViewModel,
 ) {
-    var metersValue by remember { mutableStateOf(DEFAULT_MAX_DISTANCE.toFloat()) }
-    var secondsValue by remember { mutableStateOf(DEFAULT_MAX_TIME.toFloat()) }
     var messageText by remember { mutableStateOf("") }
+    var selectedSenderId by remember { mutableStateOf<Uuid?>(null) }
 
     val listState = rememberLazyListState()
-    rememberCoroutineScope()
 
     // Collect messages and sending state from ViewModel
     val messages by viewModel.messagesFlow.collectAsState()
@@ -84,6 +85,8 @@ fun Screen(
     val discoveredDevices by viewModel.dataFlow.collectAsState()
     val currentLocation by viewModel.currentLocationFlow.collectAsState()
     val connectionErrorMessage by viewModel.connectionErrorMessageFlow.collectAsState()
+    val ttlSeconds by viewModel.messageLifeTimeFlow.collectAsState()
+    val maxDistanceMeters by viewModel.maxDistanceFlow.collectAsState()
 
     // Auto-scroll when new messages arrive
     LaunchedEffect(messages.size) {
@@ -95,7 +98,7 @@ fun Screen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(12.dp),
     ) {
         // Connection Status Indicator
         ConnectionStatusCard(
@@ -107,49 +110,43 @@ fun Screen(
             connectionErrorMessage = connectionErrorMessage,
         )
 
-        Spacer(Modifier.padding(4.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Max Distance: ${metersValue.toInt()}m",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium,
-                )
-                Slider(
-                    value = metersValue,
-                    onValueChange = {
-                        metersValue = it
-                        viewModel.updateMessageParameters(secondsValue.toDouble(), metersValue.toDouble())
-                    },
-                    valueRange = MIN_DISTANCE.toFloat()..MAX_DISTANCE.toFloat(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-        Spacer(Modifier.padding(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                .padding(bottom = 8.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Text(
-                    text = "Message Lifetime: ${secondsValue.toInt()}s",
+                    text = "Max Distance: ${maxDistanceMeters.toInt()}m",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Medium,
                 )
                 Slider(
-                    value = secondsValue,
+                    value = maxDistanceMeters.toFloat(),
                     onValueChange = {
-                        secondsValue = it
-                        viewModel.updateMessageParameters(secondsValue.toDouble(), metersValue.toDouble())
+                        viewModel.updateMessageParameters(
+                            lifeTimeSeconds = ttlSeconds,
+                            maxDistanceMeters = it.toDouble(),
+                        )
+                    },
+                    valueRange = MIN_DISTANCE.toFloat()..MAX_DISTANCE.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = "Message Lifetime: ${ttlSeconds.toInt()}s",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Slider(
+                    value = ttlSeconds.toFloat(),
+                    onValueChange = {
+                        viewModel.updateMessageParameters(
+                            lifeTimeSeconds = it.toDouble(),
+                            maxDistanceMeters = maxDistanceMeters,
+                        )
                     },
                     valueRange = MIN_TIME.toFloat()..MAX_TIME.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
@@ -168,16 +165,20 @@ fun Screen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(messages) { message ->
-                    MessageItem(message = message, uuid = uuid)
+                    MessageItem(
+                        message = message,
+                        uuid = uuid,
+                        onSenderIdClick = { selectedSenderId = it },
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -188,11 +189,11 @@ fun Screen(
                 onValueChange = { messageText = it },
                 placeholder = { Text("Write a message...") },
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(20.dp),
                 enabled = !isSending,
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
             Box {
                 FloatingActionButton(
@@ -200,8 +201,8 @@ fun Screen(
                         if (messageText.isNotBlank() && !isSending) {
                             viewModel.sendMessage(
                                 message = messageText,
-                                lifeTime = secondsValue.toDouble(),
-                                maxDistanceMeters = metersValue.toDouble(),
+                                lifeTime = ttlSeconds,
+                                maxDistanceMeters = maxDistanceMeters,
                             )
                             messageText = ""
                         }
@@ -229,6 +230,19 @@ fun Screen(
                 }
             }
         }
+    }
+
+    selectedSenderId?.let { senderId ->
+        AlertDialog(
+            onDismissRequest = { selectedSenderId = null },
+            title = { Text(text = "Sender UUID") },
+            text = { Text(text = senderId.toString()) },
+            confirmButton = {
+                TextButton(onClick = { selectedSenderId = null }) {
+                    Text("OK")
+                }
+            },
+        )
     }
 }
 
@@ -258,7 +272,7 @@ fun ConnectionStatusCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         colors = CardDefaults.cardColors(
             containerColor = stateColor.copy(alpha = BACKGROUND_ALPHA),
         ),
@@ -266,9 +280,9 @@ fun ConnectionStatusCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Surface(
                 modifier = Modifier.size(12.dp),
@@ -326,15 +340,20 @@ fun ConnectionStatusCard(
 /** Displays a single chat message bubble, aligned right for sent messages and left for received ones. */
 @OptIn(ExperimentalUuidApi::class)
 @Composable
-fun MessageItem(message: ChatMessage, uuid: Uuid) {
+fun MessageItem(
+    message: ChatMessage,
+    uuid: Uuid,
+    onSenderIdClick: (Uuid) -> Unit,
+) {
+    val isLocalMessage = message.sender == uuid
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.sender == uuid) Arrangement.End else Arrangement.Start,
+        horizontalArrangement = if (isLocalMessage) Arrangement.End else Arrangement.Start,
     ) {
         Card(
-            modifier = Modifier.widthIn(max = 280.dp),
+            modifier = Modifier.widthIn(max = 220.dp),
             colors = CardDefaults.cardColors(
-                containerColor = if (message.sender == uuid) {
+                containerColor = if (isLocalMessage) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.surface
@@ -343,39 +362,46 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
             shape = RoundedCornerShape(
                 topStart = 16.dp,
                 topEnd = 16.dp,
-                bottomStart = if (message.sender == uuid) 16.dp else 4.dp,
-                bottomEnd = if (message.sender == uuid) 4.dp else 16.dp,
+                bottomStart = if (isLocalMessage) 16.dp else 4.dp,
+                bottomEnd = if (isLocalMessage) 4.dp else 16.dp,
             ),
         ) {
             Column(
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = if (message.sender == uuid) {
+                    text = if (isLocalMessage) {
                         "You"
                     } else {
-                        "Id: ${message.sender}"
+                        "Id: ${message.sender.toShortLabel()}"
                     },
-                    color = if (message.sender == uuid) {
+                    color = if (isLocalMessage) {
                         MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
                     } else {
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     },
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = if (isLocalMessage) {
+                        Modifier
+                    } else {
+                        Modifier.clickable { onSenderIdClick(message.sender) }
+                    },
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Text(
                     text = message.text,
-                    color = if (message.sender == uuid) {
+                    color = if (isLocalMessage) {
                         MaterialTheme.colorScheme.onPrimary
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -383,7 +409,7 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
                 ) {
                     Text(
                         text = message.timestamp.toString().take(TIMESTAMP_DISPLAY_LENGTH),
-                        color = if (message.sender == uuid) {
+                        color = if (isLocalMessage) {
                             MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                         } else {
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -394,7 +420,7 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
                     if (message.distanceFromSource > 0) {
                         Text(
                             text = "${message.distanceFromSource.toInt()}m",
-                            color = if (message.sender == uuid) {
+                            color = if (isLocalMessage) {
                                 MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                             } else {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -405,5 +431,15 @@ fun MessageItem(message: ChatMessage, uuid: Uuid) {
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalUuidApi::class)
+private fun Uuid.toShortLabel(): String {
+    val value = toString()
+    return if (value.length > SHORT_ID_HEAD_LENGTH + SHORT_ID_TAIL_LENGTH) {
+        "${value.take(SHORT_ID_HEAD_LENGTH)}...${value.takeLast(SHORT_ID_TAIL_LENGTH)}"
+    } else {
+        value
     }
 }

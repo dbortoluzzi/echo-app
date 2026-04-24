@@ -38,13 +38,19 @@ fun App() {
 @OptIn(ExperimentalUuidApi::class)
 @Composable
 fun CollektiveNearbyDevices(modifier: Modifier) {
+    val stableDeviceId = remember { loadOrCreateDeviceId() }
+    val initialMessageSettings = remember { loadMessageSettings() }
     var viewModel by remember { mutableStateOf<NearbyDevicesViewModel?>(null) }
 
     // Platform-specific location service initialization
     LocationPermissionHandler(
         onPermissionGranted = { locationService ->
             if (viewModel == null) {
-                viewModel = NearbyDevicesViewModel(locationService = locationService)
+                viewModel = NearbyDevicesViewModel(
+                    deviceId = stableDeviceId,
+                    initialMessageSettings = initialMessageSettings,
+                    locationService = locationService,
+                )
             }
         },
         onPermissionDenied = {
